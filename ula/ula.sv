@@ -173,26 +173,11 @@ video2 video(.*, /*.scandoubler_disable(1),*/ .CLK(clk_ula), .VGA_R(VGA_Rx), .VG
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Instantiate keyboard support
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-wire [4:0] key_row;
-
-keyboard kbd(
-	.CLK(clk_ula),
-	.nRESET(nRESET),
-
-	// PS/2 interface
-	.PS2_CLK(PS2_CLK),
-	.PS2_DATA(PS2_DAT),
-	
-	// CPU address bus (row)
-	.A(A),
-	// Column outputs to ULA
-	.KEYB(key_row),
-	.F1(F1),
-	.F11(F11)
-);
+wire [4:0] KEYB;
+keyboard kbd( .*, .CLK(clk_ula));
 
 always_comb begin
-    ula_data =    (A[0]==0) ? { 1'b0, AUDIO_IN, 1'b0, key_row[4:0] } :
+    ula_data =    (A[0]==0) ? { 1'b0, AUDIO_IN, 1'b0, KEYB[4:0] } :
 					(psg_enable) ? sound_data :
 									   8'hFF;
 end

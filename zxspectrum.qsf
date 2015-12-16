@@ -387,9 +387,9 @@ set_global_assignment -name VERILOG_FILE z80/address_mux.v
 set_global_assignment -name VERILOG_FILE z80/address_latch.v
 set_global_assignment -name VERILOG_FILE ula/ay8910.v
 set_global_assignment -name VERILOG_FILE ula/sigma_delta_dac.v
-set_global_assignment -name VHDL_FILE ula/ps2_intf.vhd
+set_global_assignment -name VERILOG_FILE ula/ps2_intf.v
 set_global_assignment -name VERILOG_FILE ula/pll.v
-set_global_assignment -name VHDL_FILE ula/keyboard.vhd
+set_global_assignment -name VERILOG_FILE ula/keyboard.v
 set_global_assignment -name SYSTEMVERILOG_FILE ula/video2.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ula/video.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ula/ula.sv
