@@ -119,13 +119,6 @@ end
 reg ear_out;
 reg mic_out;
 
-sigma_delta_dac dac_r(
-	.CLK(clk_ula),
-	.RESET(!nRESET),
-	.DACin({ear_out, mic_out, AUDIO_IN, 5'b00000}),
-	.DACout(AUDIO_R)
-);
-
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Instantiate AY8910
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -136,24 +129,31 @@ wire [7:0] psg_ch_c;
 wire psg_enable = A[0] && A[15] && !A[1];
 
 ay8910 ay8910(
-	.CLK_I(clk_psg),
-	.EN_I(1),
-	.RESET_I(!nRESET),
-	.BDIR_I(io_we && psg_enable),
-	.CS_I(1),
-	.BC_I(A[14] && psg_enable && (io_we || io_rd)),
-	.DATA_I(D),
-	.DATA_O(sound_data),
-	.CH_A_O(psg_ch_a),
-	.CH_B_O(psg_ch_b),
-	.CH_C_O(psg_ch_c)
+	.CLK(clk_psg),
+	.EN(1),
+	.RESET(!nRESET),
+	.BDIR(io_we && psg_enable),
+	.CS(1),
+	.BC(A[14] && psg_enable && (io_we || io_rd)),
+	.DI(D),
+	.DO(sound_data),
+	.CHANNEL_A(psg_ch_a),
+	.CHANNEL_B(psg_ch_b),
+	.CHANNEL_C(psg_ch_c)
 );
 
-sigma_delta_dac #(.MSBI(10)) dac_l (
+sigma_delta_dac #(.MSBI(9)) dac_l (
 	.CLK(clk_ula),
 	.RESET(!nRESET),
-	.DACin({2'b00, psg_ch_a} + {2'b00, psg_ch_b} + {2'b00, psg_ch_c}),
+	.DACin({1'b0, psg_ch_a} + {1'b0, psg_ch_b} + {1'b0, ear_out, mic_out, AUDIO_IN, 5'b00000}),
 	.DACout(AUDIO_L)
+);
+
+sigma_delta_dac #(.MSBI(9)) dac_r(
+	.CLK(clk_ula),
+	.RESET(!nRESET),
+	.DACin({1'b0, psg_ch_c} + {1'b0, psg_ch_b} + {1'b0, ear_out, mic_out, AUDIO_IN, 5'b00000}),
+	.DACout(AUDIO_R)
 );
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
