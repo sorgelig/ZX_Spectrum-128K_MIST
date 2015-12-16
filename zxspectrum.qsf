@@ -344,6 +344,7 @@ set_global_assignment -name FLOW_ENABLE_IO_ASSIGNMENT_ANALYSIS ON
 set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+set_global_assignment -name HEX_FILE esxdos.hex
 set_global_assignment -name HEX_FILE diag.hex
 set_global_assignment -name HEX_FILE 128.hex
 set_global_assignment -name SYSTEMVERILOG_FILE z80/z80_top_direct_n.sv
@@ -397,6 +398,7 @@ set_global_assignment -name VERILOG_FILE vram.v
 set_global_assignment -name VERILOG_FILE sram.v
 set_global_assignment -name VERILOG_FILE spi.v
 set_global_assignment -name VERILOG_FILE sd_card.v
+set_global_assignment -name VERILOG_FILE divmmc_rom.v
 set_global_assignment -name VERILOG_FILE divmmc.v
 set_global_assignment -name VERILOG_FILE user_io.v
 set_global_assignment -name VERILOG_FILE tape.v

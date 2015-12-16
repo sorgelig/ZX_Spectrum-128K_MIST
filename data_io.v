@@ -27,6 +27,7 @@ module data_io (
 	input         sck,
 	input         ss,
 	input         sdi,
+	input         force_erase,
 
 	output        downloading,   // signal indicating an active download
 	output [24:0] size,          // number of bytes in input buffer
@@ -139,7 +140,7 @@ always@(posedge clk) begin
 		wr <= 1'b1;
 
 	// download may trigger an erase afterwards
-	eraseD <= erase_trigger;
+	eraseD <= erase_trigger | force_erase;
 	eraseD2 <= eraseD;
 	
 	// start erasing

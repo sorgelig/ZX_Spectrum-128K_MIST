@@ -56,6 +56,10 @@ module zxspectrum
 );
 `default_nettype none
 
+
+`define DIVMMC_ROM
+
+
 ////////////////////////////////////////////////////////////////////////
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -65,7 +69,10 @@ always_comb
 begin
     case ({nMREQ,nIORQ,nRD,nWR})
         // -------------------------------- Memory read --------------------------------
-        4'b0101: D =      ((A[15:14] > 2'b00) || ext_ram) ? sram_data : vram_data_cpu;
+        4'b0101: D =                   (A[15:14] > 2'b00) ? sram_data : 
+                             `ifdef DIVMMC_ROM divmmc_rom ? divmmc_rom_data : `endif
+                                                  ext_ram ? sram_data :
+                                                            vram_data_cpu;
 
         // ---------------------------------- IO read ----------------------------------
         4'b1001: D =                               (!nM1) ? 8'hFF :
@@ -297,7 +304,19 @@ end
 
 // wait for ESXDOS ROM loading 
 integer initRESET = 32000000;
-always @(posedge clk_sys) if(initRESET!=0) initRESET <= initRESET - 1;
+always @(posedge clk_sys) begin 
+	if(initRESET!=0) begin 
+
+`ifdef DIVMMC_ROM
+		if(initRESET == 1) begin 
+			esxdos_downloaded[0] <= 1'b1;
+			force_erase <=1'b1;
+		end
+`endif
+
+		initRESET <= initRESET - 1;
+	end
+end
 
 always @(negedge esxRQ) begin
 	esxdos_downloaded <= {esxdos_downloaded[0], esxdos_downloaded[0]};
@@ -324,17 +343,38 @@ divmmc divmmc(
 	.sd_activity(divmmc_sd_activity)
 );
 
+`ifdef DIVMMC_ROM
+
+wire divmmc_rom = (A[15:13]==3'b000) && ext_ram;
+wire [7:0] divmmc_rom_data;
+
+divmmc_rom esxrom(
+    .clock   (clk_sys),
+    .address (A[12:0]),
+    .q       (divmmc_rom_data)
+);
+
+`else
+
+always @ (posedge ioctl_download) begin
+	if(ioctl_index == 5'b00000) esxdos_downloaded[0] <= 1'b1;
+end
+
+`endif
+
 ////////////////////////////////////////////////////////////////////////////////////
 
 wire ioctl_wr;
 wire [24:0] ioctl_addr;
 wire [7:0]  ioctl_data;
+reg  force_erase = 1'b0;
 
 data_io data_io(
 	.sck(SPI_SCK),
 	.ss(SPI_SS2),
 	.sdi(SPI_DI),
 
+	.force_erase(force_erase),
 	.downloading(ioctl_download),
 	.size(ioctl_size),
 	.index(ioctl_index),
@@ -348,10 +388,6 @@ data_io data_io(
 wire [24:0] ioctl_size;
 wire        ioctl_download;
 wire [4:0]  ioctl_index;
-
-always @ (posedge ioctl_download) begin
-	if(ioctl_index == 5'b00000) esxdos_downloaded[0] <= 1'b1;
-end
 
 // tape download comes from OSD entry 1
 wire tape_download = (ioctl_index == 5'b00001) && ioctl_download;
