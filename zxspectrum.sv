@@ -305,9 +305,6 @@ end
 
 assign LED = !(!divmmc_sd_activity || ioctl_download);
 
-wire divmmc_access;
-wire divmmc_transmit;
-
 wire        divmmc_sd_activity;
 wire        divmmc_active;
 wire [18:0] divmmc_mapaddr;
@@ -323,9 +320,6 @@ divmmc divmmc(
 
 	.active(divmmc_active),
 	.mapped_addr(divmmc_mapaddr),
-	.access(divmmc_access),
-
-	.sd_transmit(divmmc_transmit),
 
 	.sd_activity(divmmc_sd_activity)
 );

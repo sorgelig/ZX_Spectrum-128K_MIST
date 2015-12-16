@@ -9,8 +9,7 @@ module spi (
    
    output spi_clk,         // spi itself
    input  spi_di,          //
-   output spi_do,          //
-	output reg transmit
+   output spi_do           //
 );
 
 reg [4:0] counter = 5'd16; // tx/rx counter is idle
@@ -29,12 +28,10 @@ always @(posedge clk) begin
       counter <= 5'd0;
 		dout <= io_byte;
 		io_byte <= tx_strobe?din:8'hff;
-		transmit <= 1'b1;
    end else if(counter != 16) begin
 		if(spi_clk) io_byte <= { io_byte[6:0], spi_di };
       counter <= counter + 5'd1;
-		transmit <= 1'b1;
-   end else transmit <= 1'b0;
+   end
 end
 
 endmodule
