@@ -74,15 +74,25 @@ wire f0,f1;
 
 pll pll_( .inclk0(CLOCK_27[0]), .c0(f0), .c1(f1), .locked(locked));
 
-reg [5:0] counter0 = 6'b0;
-wire   clk_psg = counter0[5];       //1.75MHz
-assign clk_cpu = counter0[4-turbo]; //3.5MHz
-assign clk_ula = counter0[2];       //14MHz
-assign clk_sys = counter0[1];       //28MHz
-always @(posedge f0) counter0 <= counter0 + 6'b1;
+reg [5:0] counter0 = 6'd0;
+wire   clk_psg = counter0[5]; //1.75MHz
+assign clk_ula = counter0[2]; //14MHz
+assign clk_sys = counter0[1]; //28MHz
+always @(posedge f0) counter0 <= counter0 + 6'd1;
 
-reg [4:0] counter1 = 5'b0;
-always @(posedge f1) counter1 <= counter1 + 4'b1;
+assign clk_cpu = clk_m;       //3.5MHz - normal, 4MHz - turbo.
+reg clk_m;
+reg [3:0] counterT = 4'd0;
+always @(posedge counter0[0]) begin
+	counterT <= counterT + 4'd1;
+	if(counterT == 4'd7 - turbo) begin
+		counterT <= 4'd0;
+		clk_m <= !clk_m;
+	end
+end
+
+reg [4:0] counter1 = 5'd0;
+always @(posedge f1) counter1 <= counter1 + 4'd1;
 
 //`define SLOWRAM
 

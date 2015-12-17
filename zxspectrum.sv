@@ -58,7 +58,7 @@ module zxspectrum
 
 
 `define DIVMMC_ROM
-
+//`define ENABLE_WAIT
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -125,7 +125,6 @@ wire [24:0] sram_addr = (A[15:14] == 2'b00) ? divmmc_addr :
 wire ioctl_req = (!nRESET || !nBUSACK) && !nBUSRQ;
 wire ioctl_wait;
 wire pWAIT;
-wire sram_ack;
 
 sram sram( .*,
     .init(!locked),
@@ -146,7 +145,6 @@ sram sram( .*,
 	 .rd  (ioctl_req ? 1'b0            :
 			  (!nRFSH) ? tape_io         :
                       sram_rd         ),
-	 .ack(sram_ack),
 	 .cpu_wait(pWAIT)
 );
 
@@ -195,7 +193,7 @@ wire [5:0]  VGA_Bx;
 wire        VGA_HS_OSD;
 wire        VGA_VS_OSD;
 
-ula ula_( .*, .turbo(0));
+ula ula_( .*, .turbo(status[2]));
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Instantiate A-Z80 CPU
@@ -212,11 +210,11 @@ wire nRFSH;
 wire nHALT;
 wire nBUSACK;
 
-wire nWAIT	= !pWAIT;
+wire nWAIT	= `ifdef ENABLE_WAIT !pWAIT; `else 1'b1; `endif
 wire nINT   = vs_nintr;
 wire nNMI   = esxNMI;
 wire nBUSRQ = !ioctl_download;
-wire nRESET = locked && !buttons[1] && !status[0] && !status[1] && esxRESET;
+wire nRESET = locked && !buttons[1] && !status[0] && !status[3] && esxRESET;
 
 wire io_we = !nIORQ && nRD && !nWR && nM1;
 wire io_rd = !nIORQ && !nRD && nWR && nM1;
@@ -256,10 +254,10 @@ begin
 	clk_ps2 <= clk14k_div[10];
 end
 
-user_io #(.STRLEN(36)) user_io (
+user_io #(.STRLEN(67)) user_io (
 	.*,
-	.conf_str  ("SPECTRUM;CSW;T1,Reset;T2,Trigger NMI"),
-	
+	.conf_str("SPECTRUM;CSW;T1,ESXDOS Menu (F11);O2,CPU Speed,3.5MHz,4MHz;T3,Reset"),
+
 	// ps2 keyboard emulation
 	.ps2_clk(clk_ps2),				// 12-16khz provided by core
 	.ps2_kbd_clk(PS2_CLK),
@@ -291,7 +289,7 @@ wire esxRESET = !(esxRQ && (esxdos_downloaded == 2'b01)) && (initRESET == 0);
 wire esxNMI   = !(esxRQ && esxdos_downloaded[1]);
 
 reg esxRQb = 0;
-wire esxRQ = esxRQb || status[2];
+wire esxRQ = esxRQb || status[1];
 
 reg sRST1 = 0, sRST2 = 0;
 always @(posedge clk_ps2) begin

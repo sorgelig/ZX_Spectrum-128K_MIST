@@ -46,7 +46,6 @@ module sram (
 	input  wire [7:0]  din,			   // data input from cpu
 	input  wire        we,           // cpu requests write
 	input  wire        rd,           // cpu requests read
-	output wire        ack,
 	output wire        cpu_wait      // wait for CPU
 );
 
@@ -113,9 +112,6 @@ reg save_addr0 = 1'b0;
 reg got_transaction    = 1'b0;
 reg ready_for_new      = 1'b0;
 
-reg cmd_ack = 1'b0;
-assign ack = cmd_ack;
-
 parameter data_ready_delay_high = CAS_LATENCY+1;
 reg [data_ready_delay_high:0] data_ready_delay;
 
@@ -141,12 +137,6 @@ always @(posedge clk_sdram) begin
 	we1 <= we;
 	we2 <= we1;
 	
-	if(!processing) cmd_ack <= 1'b0;
-
-	if((rd1 && !rd2) || (we1 && !we2)) begin
-		cmd_ack <= 1'b1;
-	end;
-
 	if(
 		(rd1 && !rd2 && (save_addr != addr)) ||
 		(we1 && !we2 && ((save_addr != addr) || (save_data != din)))
