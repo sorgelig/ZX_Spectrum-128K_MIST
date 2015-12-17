@@ -160,7 +160,7 @@ always@(posedge ps2_clk) begin
 	ps2_kbd_r_inc <= 1'b0;
 	
 	if(ps2_kbd_r_inc)
-		ps2_kbd_rptr <= ps2_kbd_rptr + 1;
+		ps2_kbd_rptr <= ps2_kbd_rptr + 3'd1;
 
 	// transmitter is idle?
 	if(ps2_kbd_tx_state == 0) begin
@@ -225,7 +225,7 @@ always@(posedge ps2_clk) begin
 	ps2_mouse_r_inc <= 1'b0;
 	
 	if(ps2_mouse_r_inc)
-		ps2_mouse_rptr <= ps2_mouse_rptr + 1;
+		ps2_mouse_rptr <= ps2_mouse_rptr + 3'd1;
 
 	// transmitter is idle?
 	if(ps2_mouse_tx_state == 0) begin
@@ -290,7 +290,7 @@ always @(posedge serial_strobe or posedge status[0]) begin
 		serial_out_wptr <= 0;
 	end else begin 
 		serial_out_fifo[serial_out_wptr] <= serial_data;
-		serial_out_wptr <= serial_out_wptr + 1;
+		serial_out_wptr <= serial_out_wptr + 6'd1;
 	end
 end 
 
@@ -301,7 +301,7 @@ always@(negedge spi_sck or posedge status[0]) begin
 		if((byte_cnt != 0) && (cmd == 8'h1b)) begin
 			// read last bit -> advance read pointer
 			if((bit_cnt == 7) && !byte_cnt[0] && serial_out_data_available)
-				serial_out_rptr <= serial_out_rptr + 1;
+				serial_out_rptr <= serial_out_rptr + 6'd1;
 		end
 	end
 end
@@ -351,13 +351,13 @@ always@(posedge spi_sck or posedge CONF_DATA0) begin
 				if(cmd == 8'h04) begin
 					// store incoming ps2 mouse bytes 
 					ps2_mouse_fifo[ps2_mouse_wptr] <= { sbuf, SPI_DI }; 
-					ps2_mouse_wptr <= ps2_mouse_wptr + 1;
+					ps2_mouse_wptr <= ps2_mouse_wptr + 3'd1;
 				end
 
 				if(cmd == 8'h05) begin
 					// store incoming ps2 keyboard bytes 
 					ps2_kbd_fifo[ps2_kbd_wptr] <= { sbuf, SPI_DI }; 
-					ps2_kbd_wptr <= ps2_kbd_wptr + 1;
+					ps2_kbd_wptr <= ps2_kbd_wptr + 3'd1;
 				end
 				
 				if(cmd == 8'h15)

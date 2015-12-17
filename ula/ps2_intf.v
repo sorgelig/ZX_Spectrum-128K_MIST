@@ -107,13 +107,13 @@ module ps2_intf #(parameter filter_length=8)(
                // Idle state, check for start bit (0) only and don't
                // start counting bits until we get it
                parity <= 1'b0;
-               if (!ps2_dat_in) bit_count <= bit_count + 1; // This is a start bit
+               if (!ps2_dat_in) bit_count <= bit_count + 4'd1; // This is a start bit
             end else begin
                // Running.  8-bit data comes in LSb first followed by
                // a single stop bit (1)
                if (bit_count < 4'd10) begin
                   // Shift in data and parity (9 bits)
-                  bit_count <= bit_count + 1;
+                  bit_count <= bit_count + 4'd1;
                   shiftreg <= {ps2_dat_in, shiftreg[8:1]};
                   parity <= parity ^ ps2_dat_in;		// Calculate parity
                end else if (ps2_dat_in) begin

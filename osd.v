@@ -142,9 +142,9 @@ end
 
 // area in which OSD is being displayed
 wire [9:0] h_osd_start = h_dsp_ctr + OSD_X_OFFSET - (OSD_WIDTH >> 1);
-wire [9:0] h_osd_end   = h_dsp_ctr + OSD_X_OFFSET + (OSD_WIDTH >> 1) - 1;
+wire [9:0] h_osd_end   = h_dsp_ctr + OSD_X_OFFSET + (OSD_WIDTH >> 1) - 10'd1;
 wire [9:0] v_osd_start = v_dsp_ctr + OSD_Y_OFFSET - (OSD_HEIGHT >> 1);
-wire [9:0] v_osd_end   = v_dsp_ctr + OSD_Y_OFFSET + (OSD_HEIGHT >> 1) - 1;
+wire [9:0] v_osd_end   = v_dsp_ctr + OSD_Y_OFFSET + (OSD_HEIGHT >> 1) - 10'd1;
 
 reg h_osd_active, v_osd_active;
 always @(posedge clk_pix) begin
@@ -160,8 +160,8 @@ end
 
 wire osd_de = osd_enable && h_osd_active && v_osd_active;
 
-wire [7:0] osd_hcnt = h_cnt - h_osd_start + 7'd1;  // one pixel offset for osd_byte register
-wire [6:0] osd_vcnt = v_cnt - v_osd_start;
+wire [7:0] osd_hcnt = h_cnt[7:0] - h_osd_start[7:0] + 8'd1;  // one pixel offset for osd_byte register
+wire [6:0] osd_vcnt = v_cnt[6:0] - v_osd_start[6:0];
 
 wire osd_pixel = osd_byte[osd_vcnt[3:1]];
 
