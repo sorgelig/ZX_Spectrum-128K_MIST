@@ -69,16 +69,16 @@ always_comb
 begin
     case ({nMREQ,nIORQ,nRD,nWR})
         // -------------------------------- Memory read --------------------------------
-        4'b0101: D =                   (A[15:14] > 2'b00) ? sram_data : 
-                             `ifdef DIVMMC_ROM divmmc_rom ? divmmc_rom_data : `endif
-                                                  ext_ram ? sram_data :
-                                                            vram_data_cpu;
+        4'b0101: D =          (A[15:14] > 2'b00) ? sram_data : 
+                    `ifdef DIVMMC_ROM divmmc_rom ? divmmc_rom_data : `endif
+                                         ext_ram ? sram_data :
+                                                   vram_data_cpu;
 
         // ---------------------------------- IO read ----------------------------------
-        4'b1001: D =                               (!nM1) ? 8'hFF :
-                ((A[7:0]==8'hEB) && esxdos_downloaded[1]) ? divmmc_data :
-		                                    (A[7:0]==8'h1F) ? {2'b00, joystick_0[5:0] | joystick_1[5:0]} :
-                                                            ula_data;
+        4'b1001: D =                      (!nM1) ? 8'hFF :
+                                divmmc_active_io ? divmmc_data :
+		                           (A[7:0]==8'h1F) ? {2'b00, joystick_0[5:0] | joystick_1[5:0]} :
+                                                   ula_data;
 
        default: D = 8'bzzzzzzzz;
     endcase
@@ -324,6 +324,7 @@ assign LED = !(!divmmc_sd_activity || ioctl_download);
 
 wire        divmmc_sd_activity;
 wire        divmmc_active;
+wire        divmmc_active_io;
 wire [18:0] divmmc_mapaddr;
 wire  [7:0] divmmc_data;
 
@@ -336,6 +337,7 @@ divmmc divmmc(
 	.dout(divmmc_data),
 
 	.active(divmmc_active),
+	.active_io(divmmc_active_io),
 	.mapped_addr(divmmc_mapaddr),
 
 	.sd_activity(divmmc_sd_activity)

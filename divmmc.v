@@ -15,8 +15,8 @@ module divmmc (
 	input  [7:0]  	din,
 	output [7:0]  	dout,
 	
-	// memory state
 	output         active,
+	output         active_io,
 	output [18:0]  mapped_addr,
 	
 	output [31:0]  sd_lba,
@@ -47,6 +47,7 @@ assign mapped_addr = {((A[13]) ? {2'b01, sram_page} : 6'b000000), A[12:0]};
 reg m1_trigger;
 reg memactive = 1'b0;
 assign active = (memactive || conmem);
+assign active_io = (A[7:0]==8'hEB) && active;
 assign sd_activity = sd_cs;
 
 always @(posedge clk) begin
@@ -63,22 +64,22 @@ always @(posedge clk) begin
 
 		spi_rx_strobe <= 1'b0;
 		spi_tx_strobe <= 1'b0;
-			
-		//if((a[7:4] == 4'hE) && a[0] && (nIORQ==0) && (nM1==1)) reg_access <= 1'b1;
 
-		if(io_we && (A[7:0] == 8'hE3)) begin 
-			sram_page <= din[3:0];
-			conmem <= din[7];
-			//if(din[6]) mapram <= 1'b1; // can reset only by cycling power (core reload)
+		if(active) begin
+			if(io_we && (A[7:0] == 8'hE3)) begin 
+				sram_page <= din[3:0];
+				conmem <= din[7];
+				//if(din[6]) mapram <= 1'b1; // can reset only by cycling power (core reload)
+			end
+
+			if(io_we && (A[7:0] == 8'hE7)) sd_cs <= din[0];
+
+			// SPI read
+			if(io_rd && (A[7:0] == 8'hEB)) spi_rx_strobe <= 1'b1;
+
+			// SPI write
+			if(io_we && (A[7:0] == 8'hEB)) spi_tx_strobe <= 1'b1;
 		end
-
-		if(io_we && (A[7:0] == 8'hE7)) sd_cs <= din[0];
-
-		// SPI read
-		if(io_rd && (A[7:0] == 8'hEB)) spi_rx_strobe <= 1'b1;
-
-		// SPI write
-		if(io_we && (A[7:0] == 8'hEB)) spi_tx_strobe <= 1'b1;
 
 		if(op_rd) begin
 			if((A==16'h0000) || (A==16'h0008) || (A==16'h0038) || (A==16'h0066) || (A==16'h04C6) || (A==16'h0562)) begin
