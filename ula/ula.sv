@@ -20,50 +20,52 @@
 module ula
 (
     //-------- Clocks and reset -----------------
-    input  wire [1:0] CLOCK_27,     // Input clock 27 MHz
-    input  wire turbo,              // Turbo speed (3.5 MHz x 2 = 7.0 MHz)
-    input  wire nRESET,             // KEY0 is reset
-    output wire locked,             // PLL is locked signal
+    input  wire [1:0]  CLOCK_27,     // Input clock 27 MHz
+    input  wire        turbo,              // Turbo speed (3.5 MHz x 2 = 7.0 MHz)
+    input  wire        nRESET,             // KEY0 is reset
+    output wire        locked,             // PLL is locked signal
 
     //-------- CPU control ----------------------
-    output wire clk_cpu,            // Generates CPU clock of 3.5 MHz
-    output wire clk_pix,            // Pixel clock (25.175 MHz or 14 MHz)
-    output wire clk_ram,            // SDRAM clock 112MHz
-    output wire clk_sys,            // System master clock (28 MHz)
-    output wire clk_ula,				// System master clock (14 MHz)
-    output wire vs_nintr,           // Generates a vertical retrace interrupt
-    output wire SDRAM_CLK,          // SDRAM clock 112MHz phase shifted for chip
+    output wire        clk_cpu,            // Generates CPU clock of 3.5 MHz
+    output wire        clk_pix,            // Pixel clock (25.175 MHz or 14 MHz)
+    output wire        clk_ram,            // SDRAM clock 112MHz
+    output wire        clk_sys,            // System master clock (28 MHz)
+    output wire        clk_ula,				// System master clock (14 MHz)
+    output wire        vs_nintr,           // Generates a vertical retrace interrupt
+    output wire        SDRAM_CLK,          // SDRAM clock 112MHz phase shifted for chip
 
     //-------- Address and data buses -----------
     input  wire [15:0] A,            // Input address bus
     input  wire [7:0]  D,            // Input data bus
     output wire [7:0]  ula_data,     // Output data
-    input  wire io_we,               // Write enable to data register through IO
-    input  wire io_rd,               
-    output wire F11,
-    output wire F1,
+    input  wire        nIORQ,
+    input  wire        nMREQ,
+    input  wire        io_we,               // Write enable to data register through IO
+    input  wire        io_rd,               
+    output wire        F11,
+    output wire        F1,
 
     //-------- PS/2 Keyboard --------------------
-    input  wire PS2_CLK,
-    input  wire PS2_DAT,
+    input  wire        PS2_CLK,
+    input  wire        PS2_DAT,
 
     //-------- Audio --------------
-    output wire AUDIO_L,
-    output wire AUDIO_R,
-    input  wire AUDIO_IN,
+    output wire        AUDIO_L,
+    output wire        AUDIO_R,
+    input  wire        AUDIO_IN,
 
     //-------- VGA connector --------------------
-    output wire [5:0] VGA_Rx,
-    output wire [5:0] VGA_Gx,
-    output wire [5:0] VGA_Bx,
-    output reg VGA_HS,
-    output reg VGA_VS,
-    output reg VGA_HS_OSD,
-    output reg VGA_VS_OSD,
+    output wire [5:0]  VGA_Rx,
+    output wire [5:0]  VGA_Gx,
+    output wire [5:0]  VGA_Bx,
+    output reg         VGA_HS,
+    output reg         VGA_VS,
+    output reg         VGA_HS_OSD,
+    output reg         VGA_VS_OSD,
 	 
     output wire [12:0] vram_address,// ULA video block requests a byte from the video RAM
-    input  wire [7:0] vram_data,     // ULA video block reads a byte from the video RAM
-	 input  wire scandoubler_disable
+    input  wire [7:0]  vram_data,     // ULA video block reads a byte from the video RAM
+	 input  wire        scandoubler_disable
 );
 `default_nettype none
 
@@ -80,14 +82,13 @@ assign clk_ula = counter0[2]; //14MHz
 assign clk_sys = counter0[1]; //28MHz
 always @(posedge f0) counter0 <= counter0 + 6'd1;
 
-assign clk_cpu = clk_m;       //3.5MHz - normal, 4MHz - turbo.
-reg clk_m;
+reg clk_cpu2x;
 reg [3:0] counterT = 4'd0;
-always @(posedge counter0[0]) begin
+always @(posedge f0) begin
 	counterT <= counterT + 4'd1;
-	if(counterT == 4'd7 - turbo) begin
+	if(counterT == 4'd7-turbo) begin
 		counterT <= 4'd0;
-		clk_m <= !clk_m;
+		clk_cpu2x <= !clk_cpu2x;
 	end
 end
 
@@ -178,7 +179,8 @@ sigma_delta_dac #(.MSBI(9)) dac_r(
 
 // PAL version
 assign clk_pix = clk_ula;
-video2 video(.*, /*.scandoubler_disable(1),*/ .CLK(clk_ula), .VGA_R(VGA_Rx), .VGA_G(VGA_Gx), .VGA_B(VGA_Bx));
+//video2 video(.*, /*.scandoubler_disable(1),*/ .CLK(clk_ula), .VGA_R(VGA_Rx), .VGA_G(VGA_Gx), .VGA_B(VGA_Bx));
+video3 video(.*, .CLK(clk_ula), .VGA_R(VGA_Rx), .VGA_G(VGA_Gx), .VGA_B(VGA_Bx));
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Instantiate keyboard support
