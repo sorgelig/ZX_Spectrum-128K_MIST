@@ -26,6 +26,7 @@ module video3(
     // Video clock (14 MHz)
     input         CLK,
     input         clk_cpu2x,
+    input         nCONT,          
     
     // Memory interface
     output [12:0] vram_address,
@@ -240,7 +241,7 @@ wire Nor2 = (~(hc[2] | hc[3])) |
 
 wire CLKContention = ~Nor1 | ~Nor2;
 always @(posedge clk_cpu2x) begin	
-	if (CPUClk && !CLKContention)   // if there's no contention, the clock can go low
+	if (CPUClk && (nCONT || !CLKContention))   // if there's no contention, the clock can go low
 		CPUClk <= 0;
 	else
 		CPUClk <= 1;

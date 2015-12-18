@@ -80,7 +80,7 @@ begin
 		                           (A[7:0]==8'h1F) ? {2'b00, joystick_0[5:0] | joystick_1[5:0]} :
                                                    ula_data;
 
-       default: D = 8'bzzzzzzzz;
+        default: D = 8'bzzzzzzzz;
     endcase
 end
 
@@ -123,7 +123,6 @@ wire [24:0] sram_addr = (A[15:14] == 2'b00) ? divmmc_addr :
 								                      {8'd0, page_ram_sel, A[13:0]};
 
 wire ioctl_req = (!nRESET || !nBUSACK) && !nBUSRQ;
-wire ioctl_wait;
 wire pWAIT;
 
 sram sram( .*,
@@ -164,9 +163,9 @@ always @ (posedge clk_cpu or negedge nRESET) begin
 	end else begin
 		if (page_write && !page_reg_disable) begin
 			page_reg_disable <= D[5];
-			page_rom_sel <= D[4];
-			page_shadow_scr <= D[3];
-			page_ram_sel <= D[2:0];
+			page_rom_sel     <= D[4];
+			page_shadow_scr  <= D[3];
+			page_ram_sel     <= D[2:0];
 		end
 	end
 end
@@ -193,7 +192,7 @@ wire [5:0]  VGA_Bx;
 wire        VGA_HS_OSD;
 wire        VGA_VS_OSD;
 
-ula ula_( .*, .turbo(status[2]));
+ula ula_( .*, .turbo(status[2]), .nCONT(status[3]));
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Instantiate A-Z80 CPU
@@ -214,7 +213,7 @@ wire nWAIT	= `ifdef ENABLE_WAIT !pWAIT; `else 1'b1; `endif
 wire nINT   = vs_nintr;
 wire nNMI   = esxNMI;
 wire nBUSRQ = !ioctl_download;
-wire nRESET = locked && !buttons[1] && !status[0] && !status[3] && esxRESET;
+wire nRESET = locked && !buttons[1] && !status[0] && !status[4] && esxRESET;
 
 wire io_we = !nIORQ && nRD && !nWR && nM1;
 wire io_rd = !nIORQ && !nRD && nWR && nM1;
@@ -237,13 +236,13 @@ wire [7:0]  status;
 wire [31:0] sd_lba;
 wire        sd_rd;
 wire        sd_wr;
-wire 	      sd_ack;
+wire        sd_ack;
 wire        sd_conf;
 wire        sd_sdhc;
 wire [7:0]  sd_dout;
-wire 	      sd_dout_strobe;
+wire        sd_dout_strobe;
 wire [7:0]  sd_din;
-wire    	   sd_din_strobe;
+wire        sd_din_strobe;
 
 reg [10:0]  clk14k_div;
 reg         clk_ps2;
@@ -254,9 +253,9 @@ begin
 	clk_ps2 <= clk14k_div[10];
 end
 
-user_io #(.STRLEN(67)) user_io (
+user_io #(.STRLEN(94)) user_io (
 	.*,
-	.conf_str("SPECTRUM;CSW;T1,ESXDOS Menu (F11);O2,CPU Speed,3.5MHz,4MHz;T3,Reset"),
+	.conf_str("SPECTRUM;CSW;T1,ESXDOS Menu (F11);O2,CPU Speed,3.5MHz,4MHz;O3,Contended memory,On,Off;T4,Reset"),
 
 	// ps2 keyboard emulation
 	.ps2_clk(clk_ps2),				// 12-16khz provided by core
