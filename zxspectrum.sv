@@ -58,7 +58,6 @@ module zxspectrum
 
 
 `define DIVMMC_ROM
-//`define ENABLE_WAIT
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -123,7 +122,6 @@ wire [24:0] sram_addr = (A[15:14] == 2'b00) ? divmmc_addr :
 								                      {8'd0, page_ram_sel, A[13:0]};
 
 wire ioctl_req = (!nRESET || !nBUSACK) && !nBUSRQ;
-wire pWAIT;
 
 sram sram( .*,
     .init(!locked),
@@ -143,8 +141,7 @@ sram sram( .*,
 							 
 	 .rd  (ioctl_req ? 1'b0            :
 			  (!nRFSH) ? tape_io         :
-                      sram_rd         ),
-	 .cpu_wait(pWAIT)
+                      sram_rd         )
 );
 
 reg       page_shadow_scr  = 1'b0;
@@ -209,7 +206,7 @@ wire nRFSH;
 wire nHALT;
 wire nBUSACK;
 
-wire nWAIT	= `ifdef ENABLE_WAIT !pWAIT; `else 1'b1; `endif
+wire nWAIT	= 1'b1;
 wire nINT   = vs_nintr;
 wire nNMI   = esxNMI;
 wire nBUSRQ = !ioctl_download;

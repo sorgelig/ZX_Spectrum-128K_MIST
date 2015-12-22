@@ -45,8 +45,7 @@ module sram (
 	output wire [7:0]  dout,			// data output to cpu
 	input  wire [7:0]  din,			   // data input from cpu
 	input  wire        we,           // cpu requests write
-	input  wire        rd,           // cpu requests read
-	output wire        cpu_wait      // wait for CPU
+	input  wire        rd            // cpu requests read
 );
 
 // no burst configured
@@ -120,8 +119,7 @@ assign dout = save_data;
 reg rd1,rd2;
 reg we1,we2;
 
-reg processing = 1'b0;
-assign cpu_wait = processing;
+reg new_request = 1'b0;
 
 always @(posedge clk_sdram) begin
 
@@ -141,23 +139,21 @@ always @(posedge clk_sdram) begin
 		(rd1 && !rd2 && (save_addr != addr)) ||
 		(we1 && !we2 && ((save_addr != addr) || (save_data != din)))
 	  ) begin
-		processing <= 1'b1;
+		new_request <= 1'b1;
 	end;
 	
-	if (ready_for_new) begin
-		if(we || rd) begin
-			if(we) save_data <= din;
-			save_addr        <= addr;
-			save_we          <= we;
-         got_transaction  <= 1'b1;
-         ready_for_new    <= 1'b0;
-      end
+	if (ready_for_new && new_request) begin
+		if(we) save_data <= din;
+		save_addr        <= addr;
+		save_we          <= we;
+      got_transaction  <= 1'b1;
+      ready_for_new    <= 1'b0;
+		new_request      <= 1'b0;
 	end
 	
    if (data_ready_delay[0] == 1'b1) begin
 		save_data <= save_addr0 ? SDRAM_DQ[15:8] : SDRAM_DQ[7:0];
 		ready_for_new <= 1'b1;
-		processing <= 1'b0;
    end
 	
    data_ready_delay <= {1'b0, data_ready_delay[data_ready_delay_high:1]};
@@ -302,7 +298,6 @@ always @(posedge clk_sdram) begin
 			SDRAM_A     <= {4'b0000, save_addr[9:1]};
 			SDRAM_BA    <= save_addr[24:23];
 			SDRAM_A[10] <= 1'b0; // A10 actually matters - it selects auto precharge
-			processing  <= 1'b0;
 		end
 
 		STATE_WRITE_2: begin
