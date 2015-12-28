@@ -21,19 +21,18 @@ module ula
 (
     //-------- Clocks and reset -----------------
     input  wire [1:0]  CLOCK_27,     // Input clock 27 MHz
-    input  wire        turbo,              // Turbo speed (3.5 MHz x 2 = 7.0 MHz)
+    input  wire        turbo,        // Turbo speed (3.5 MHz x 2 = 7.0 MHz)
     input  wire        nCONT,          
-    input  wire        nRESET,             // KEY0 is reset
-    output wire        locked,             // PLL is locked signal
+    input  wire        nRESET,       // KEY0 is reset
+    output wire        locked,       // PLL is locked signal
 
     //-------- CPU control ----------------------
-    output wire        clk_cpu,            // Generates CPU clock of 3.5 MHz
-    output wire        clk_pix,            // Pixel clock (25.175 MHz or 14 MHz)
-    output wire        clk_ram,            // SDRAM clock 112MHz
-    output wire        clk_sys,            // System master clock (28 MHz)
-    output wire        clk_ula,				// System master clock (14 MHz)
-    output wire        vs_nintr,           // Generates a vertical retrace interrupt
-    output wire        SDRAM_CLK,          // SDRAM clock 112MHz phase shifted for chip
+    output wire        clk_cpu,      // Generates CPU clock of 3.5 MHz
+    output wire        clk_ram,      // SDRAM clock 112MHz
+    output wire        clk_sys,      // System master clock (28 MHz)
+    output wire        clk_ula,		 // System master clock (14 MHz)
+    output wire        vs_nintr,     // Generates a vertical retrace interrupt
+    output wire        SDRAM_CLK,    // SDRAM clock 112MHz phase shifted for chip
 
     //-------- Address and data buses -----------
     input  wire [15:0] A,            // Input address bus
@@ -41,7 +40,7 @@ module ula
     output wire [7:0]  ula_data,     // Output data
     input  wire        nIORQ,
     input  wire        nMREQ,
-    input  wire        io_we,               // Write enable to data register through IO
+    input  wire        io_we,        // Write enable to data register through IO
     input  wire        io_rd,               
     output wire        F11,
     output wire        F1,
@@ -56,16 +55,18 @@ module ula
     input  wire        AUDIO_IN,
 
     //-------- VGA connector --------------------
-    output wire [5:0]  VGA_Rx,
-    output wire [5:0]  VGA_Gx,
-    output wire [5:0]  VGA_Bx,
+    input  wire        SPI_SCK,
+    input  wire        SPI_SS3,
+    input  wire        SPI_DI,
+
+    output wire [5:0]  VGA_R,
+    output wire [5:0]  VGA_G,
+    output wire [5:0]  VGA_B,
     output reg         VGA_HS,
     output reg         VGA_VS,
-    output reg         VGA_HS_OSD,
-    output reg         VGA_VS_OSD,
 	 
-    output wire [12:0] vram_address,// ULA video block requests a byte from the video RAM
-    input  wire [7:0]  vram_data,     // ULA video block reads a byte from the video RAM
+    output wire [12:0] vram_address, // ULA video block requests a byte from the video RAM
+    input  wire [7:0]  vram_data,    // ULA video block reads a byte from the video RAM
 	 input  wire        scandoubler_disable
 );
 `default_nettype none
@@ -171,17 +172,7 @@ sigma_delta_dac #(.MSBI(10)) dac_r(
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Instantiate ULA's video subsystem
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-// VGA version
-// assign clk_pix = f2; // 25.175 MHz
-// assign VGA_HS_OSD = VGA_HS;
-// assign VGA_VS_OSD = VGA_VS;
-//video video( .*, .VGA_R(VGA_Rx), .VGA_G(VGA_Gx), .VGA_B(VGA_Bx));
-
-// PAL version
-assign clk_pix = clk_ula;
-//video2 video(.*, /*.scandoubler_disable(1),*/ .CLK(clk_ula), .VGA_R(VGA_Rx), .VGA_G(VGA_Gx), .VGA_B(VGA_Bx));
-video3 video(.*, .CLK(clk_ula), .VGA_R(VGA_Rx), .VGA_G(VGA_Gx), .VGA_B(VGA_Bx));
+video3 video(.*, .CLK(clk_ula));
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Instantiate keyboard support

@@ -100,7 +100,7 @@ wire [15:0] vram_addr_cpu =  (A[15:14] == 2'b00) ? {1'b0, page_rom_sel, A[13:0]}
 
 // "A" side is the CPU side, "B" side is the VGA image generator
 vram vram(
-    .clock      (clk_pix),       // RAM connects to 112MHz
+    .clock      (clk_sys),
 
     .address_a  (vram_addr_cpu), // Address in to the RAM from the CPU side
     .data_a     (D),             // Data in to the RAM from the CPU side
@@ -172,7 +172,6 @@ end
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 wire        locked;
 wire        clk_cpu;       // CPU clock of 3.5 MHz
-wire        clk_pix;			// pixel clock according to choosen standard
 wire        clk_ram;			// 112MHz clock for RAM 
 wire        clk_sys;       // 28MHz for system synchronization 
 wire        clk_ula;       // 14MHz
@@ -183,11 +182,6 @@ wire [7:0]  ula_data;
 wire        F11;
 wire        F1;
 reg         AUDIO_IN;
-wire [5:0]  VGA_Rx;
-wire [5:0]  VGA_Gx;
-wire [5:0]  VGA_Bx;
-wire        VGA_HS_OSD;
-wire        VGA_VS_OSD;
 
 ula ula_( .*, .turbo(status[2]), .nCONT(status[3]));
 
@@ -267,8 +261,6 @@ user_io #(.STRLEN(94)) user_io (
 	.serial_data(),
 	.serial_strobe()
 );
-
-osd osd( .*);
 
 //////////////////////////////////////////////////////////////////////////////////
 
