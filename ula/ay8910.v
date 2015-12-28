@@ -68,7 +68,7 @@ module ay8910(
    endfunction
    
    // Write to AY
-   always @(posedge RESET or posedge CLK)
+   always @(posedge RESET or posedge BDIR)
       if (RESET) begin
          Address   <=  4'd0;
          Period_A  <= 12'd0;
@@ -83,7 +83,7 @@ module ay8910(
          Shape     <=  4'd0;
          Reset_Req <=  1'b0;
       end else  begin
-         if (CS && BDIR) begin
+         if (CS) begin
             if (BC) Address <= DI[3:0];		// Latch Address
             else
                case (Address)		// Latch Registers
