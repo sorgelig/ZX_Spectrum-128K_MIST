@@ -14,7 +14,6 @@ PLLJ_PLLSPE_INFO.txt
 *.done
 *.jdi
 *.pin
-*.rbf
 *.sof
 *.qws
 *.ppf
