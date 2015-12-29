@@ -244,9 +244,9 @@ begin
 	clk_ps2 <= clk14k_div[10];
 end
 
-user_io #(.STRLEN(94)) user_io (
+user_io #(.STRLEN(121)) user_io (
 	.*,
-	.conf_str("SPECTRUM;CSW;T1,ESXDOS Menu (F11);O2,CPU Speed,3.5MHz,4MHz;O3,Contended memory,On,Off;T4,Reset"),
+	.conf_str("SPECTRUM;CSW;T1,ESXDOS Menu (F11);O5,Autoload ESXDOS,No,Yes;O2,CPU Speed,3.5MHz,4MHz;O3,Contended timings,On,Off;T4,Reset"),
 
 	// ps2 keyboard emulation
 	.ps2_clk(clk_ps2),				// 12-16khz provided by core
@@ -265,7 +265,8 @@ user_io #(.STRLEN(94)) user_io (
 //////////////////////////////////////////////////////////////////////////////////
 
 reg  [1:0] esxdos_downloaded = 1'b00;
-wire ext_ram = divmmc_active && esxdos_downloaded[1];
+wire esxdos_ready = esxdos_downloaded[!status[5]];
+wire ext_ram = divmmc_active && esxdos_ready;
 
 // write to upper 8k unless
 wire ext_ram_write = ext_ram && (A[15:13] == 3'b001);
@@ -273,8 +274,8 @@ wire ext_ram_write = ext_ram && (A[15:13] == 3'b001);
 // DIVMMC mapping
 wire [24:0] divmmc_addr = {6'b000011, divmmc_mapaddr};
 
-wire esxRESET = !(esxRQ && (esxdos_downloaded == 2'b01)) && (initRESET == 0);
-wire esxNMI   = !(esxRQ && esxdos_downloaded[1]);
+wire esxRESET = !(esxRQ && !esxdos_ready && esxdos_downloaded[0]) && (initRESET == 0);
+wire esxNMI   = !(esxRQ && esxdos_ready);
 
 reg esxRQb = 0;
 wire esxRQ = esxRQb || status[1];
@@ -320,7 +321,7 @@ divmmc divmmc(
 	.*,
 	.clk(clk_sys),
 
-	.enabled(esxdos_downloaded[1]),
+	.enabled(esxdos_ready),
 	.din(D),
 	.dout(divmmc_data),
 
