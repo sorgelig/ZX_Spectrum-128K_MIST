@@ -22,7 +22,7 @@
 `define cyclestart(a,b) ((a)==(b))
 `define cycleend(a,b) ((a)==(b+1))
 
-module video3(
+module video(
     // Video clock (14 MHz)
     input         CLK,
     input         clk_cpu2x,
@@ -55,13 +55,13 @@ module video3(
 	 input         scandoubler_disable
 );
 
-assign VGA_HS     = scandoubler_disable ? ~(HSync ^ VSync) : ~sd_hs;
-assign VGA_VS     = scandoubler_disable ? 1'b1 : ~sd_vs;
+assign     VGA_HS = scandoubler_disable ? ~(HSync ^ VSync) : ~sd_hs;
+assign     VGA_VS = scandoubler_disable ? 1'b1 : ~sd_vs;
 wire [5:0] VGA_Rx = scandoubler_disable ? {R, R, I & R, I & R, I & R, I & R} : {sd_r, sd_r[1:0]};
 wire [5:0] VGA_Gx = scandoubler_disable ? {G, G, I & G, I & G, I & G, I & G} : {sd_g, sd_g[1:0]};
 wire [5:0] VGA_Bx = scandoubler_disable ? {B, B, I & B, I & B, I & B, I & B} : {sd_b, sd_b[1:0]};
-wire VGA_HS_OSD   = scandoubler_disable ? ~HSync : ~sd_hs;
-wire VGA_VS_OSD   = scandoubler_disable ? ~VSync : ~sd_vs;
+wire       OSD_HS = scandoubler_disable ? ~HSync : ~sd_hs;
+wire       OSD_VS = scandoubler_disable ? ~VSync : ~sd_vs;
 
 osd osd( .*, .clk_pix(CLK));
 
