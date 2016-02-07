@@ -36,7 +36,7 @@ module ula
 
     //-------- Address and data buses -----------
     input  wire [15:0] A,            // Input address bus
-    input  wire [7:0]  D,            // Input data bus
+    input  wire [7:0]  din,           // Input data bus
     output wire [7:0]  ula_data,     // Output data
     input  wire        nIORQ,
     input  wire        nMREQ,
@@ -116,13 +116,13 @@ reg [2:0] border;
 always @(posedge clk_sys)
 begin
 	if(!nRESET) begin
-        border <=  3'b000;
+        border  <=  3'b000;
         ear_out <= 1'b0; 
         mic_out <= 1'b0;
     end else if (!A[0] && io_we) begin
-        border <= D[2:0];
-        ear_out <= D[4]; 
-        mic_out <= D[3];
+        border  <= din[2:0];
+        ear_out <= din[4]; 
+        mic_out <= din[3];
     end
 end
 
@@ -148,7 +148,7 @@ ay8910 ay8910(
 	.BDIR(io_we && clk_cpu && psg_enable),
 	.CS(1),
 	.BC(A[14]),
-	.DI(D),
+	.DI(din),
 	.DO(sound_data),
 	.CHANNEL_A(psg_ch_a),
 	.CHANNEL_B(psg_ch_b),

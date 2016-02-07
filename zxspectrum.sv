@@ -1,9 +1,10 @@
 //============================================================================
 // Sinclair ZX Spectrum host board
 // 
-//  Port to MIST board. (C) 2015 Sorgelig
+//  Port to MIST board. 
+//  Copyright (C) 2015 Sorgelig
 //
-//  Copyright (C) 2014  Goran Devic
+//  Based on sample ZX Spectrum code by Goran Devic
 //
 //  This program is free software; you can redistribute it and/or modify it
 //  under the terms of the GNU General Public License as published by the Free
@@ -68,18 +69,18 @@ always_comb
 begin
     case ({nMREQ,nIORQ,nRD,nWR})
         // -------------------------------- Memory read --------------------------------
-        4'b0101: D =          (A[15:14] > 2'b00) ? sram_data : 
+        4'b0101: DI =         (A[15:14] > 2'b00) ? sram_data : 
                     `ifdef DIVMMC_ROM divmmc_rom ? divmmc_rom_data : `endif
                                          ext_ram ? sram_data :
                                                    vram_data_cpu;
 
         // ---------------------------------- IO read ----------------------------------
-        4'b1001: D =                      (!nM1) ? 8'hFF :
+        4'b1001: DI =                     (!nM1) ? 8'hFF :
                                 divmmc_active_io ? divmmc_data :
 		                           (A[7:0]==8'h1F) ? {2'b00, joystick_0[5:0] | joystick_1[5:0]} :
                                                    ula_data;
 
-        default: D = 8'bzzzzzzzz;
+        default: DI = 8'hFF;
     endcase
 end
 
@@ -103,7 +104,7 @@ vram vram(
     .clock      (clk_sys),
 
     .address_a  (vram_addr_cpu), // Address in to the RAM from the CPU side
-    .data_a     (D),             // Data in to the RAM from the CPU side
+    .data_a     (DO),            // Data in to the RAM from the CPU side
     .q_a        (vram_data_cpu), // Data out from the RAM into the data bus selector
     .wren_a     (vram_we),
 
@@ -129,7 +130,7 @@ sram sram( .*,
 	 .dout(sram_data),
 	 .din (ioctl_req ? ioctl_data      : 
 			  (!nRFSH) ? 8'b0            :
-			             D               ),
+			             DO              ),
 
 	 .addr(ioctl_req ? ioctl_addr      : 
 			  (!nRFSH) ? tape_addr_save  :
@@ -159,10 +160,10 @@ always @ (posedge clk_cpu or negedge nRESET) begin
 		page_ram_sel     <= 3'b000;
 	end else begin
 		if (page_write && !page_reg_disable) begin
-			page_reg_disable <= D[5];
-			page_rom_sel     <= D[4];
-			page_shadow_scr  <= D[3];
-			page_ram_sel     <= D[2:0];
+			page_reg_disable <= DO[5];
+			page_rom_sel     <= DO[4];
+			page_shadow_scr  <= DO[3];
+			page_ram_sel     <= DO[2:0];
 		end
 	end
 end
@@ -183,13 +184,14 @@ wire        F11;
 wire        F1;
 reg         AUDIO_IN;
 
-ula ula_( .*, .turbo(status[2]), .nCONT(status[3]));
+ula ula_( .*, .din(DO), .turbo(status[2]), .nCONT(status[3]));
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Instantiate A-Z80 CPU
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 wire [15:0] A;  // Global address bus
-wire [7:0]  D;  // CPU data bus
+wire  [7:0] DI;  // CPU data input bus
+wire  [7:0] DO;  // CPU data output bus
 
 wire nM1;
 wire nMREQ;
@@ -322,7 +324,7 @@ divmmc divmmc(
 	.clk(clk_sys),
 
 	.enabled(esxdos_ready),
-	.din(D),
+	.din(DO),
 	.dout(divmmc_data),
 
 	.active(divmmc_active),

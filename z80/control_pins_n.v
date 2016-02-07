@@ -19,7 +19,6 @@
 module control_pins_n(
 	busack,
 	CPUCLK,
-	pin_control_oe,
 	in_halt,
 	pin_nWAIT,
 	pin_nBUSRQ,
@@ -51,7 +50,6 @@ module control_pins_n(
 
 input wire	busack;
 input wire	CPUCLK;
-input wire	pin_control_oe;
 input wire	in_halt;
 input wire	pin_nWAIT;
 input wire	pin_nBUSRQ;
@@ -86,13 +84,13 @@ assign	pin_nRFSH = nRFSH_out;
 
 
 
-assign	pin_nMREQ = pin_control_oe ? nMREQ_out : 1'bz;
+assign	pin_nMREQ = nMREQ_out;
 
-assign	pin_nIORQ = pin_control_oe ? nIORQ_out : 1'bz;
+assign	pin_nIORQ = nIORQ_out;
 
-assign	pin_nRD = pin_control_oe ? nRD_out : 1'bz;
+assign	pin_nRD = nRD_out;
 
-assign	pin_nWR = pin_control_oe ? nWR_out : 1'bz;
+assign	pin_nWR = nWR_out;
 
 assign	busrq =  ~pin_nBUSRQ;
 

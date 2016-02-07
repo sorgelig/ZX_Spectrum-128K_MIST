@@ -21,7 +21,8 @@ module z80_top_direct_n(
 
     input wire CLK,
     output wire [15:0] A,
-    inout wire [7:0] D
+    input  wire [7:0] DI,
+    output wire [7:0] DO
 );
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -33,7 +34,7 @@ module z80_top_direct_n(
 // Address, Data and Control bus drivers connecting to external pins
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 address_pins   address_pins_( .*, .abus(A[15:0]) );
-data_pins      data_pins_   ( .*, .db(db0[7:0]), .D(D[7:0]) );
+data_pins      data_pins_   ( .*, .db(db0[7:0]) );
 control_pins_n control_pins_( .*,
     .pin_nM1      (nM1),
     .pin_nMREQ    (nMREQ),
