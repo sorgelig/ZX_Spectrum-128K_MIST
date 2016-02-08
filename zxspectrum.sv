@@ -211,7 +211,28 @@ wire nRESET = locked && !buttons[1] && !status[0] && !status[4] && esxRESET;
 wire io_we = !nIORQ && nRD && !nWR && nM1;
 wire io_rd = !nIORQ && !nRD && nWR && nM1;
 
-z80_top_direct_n cpu( .*, .CLK(clk_cpu));
+T80se cpu (
+	.RESET_n(nRESET),
+	.CLK_n(clk_cpu),
+	.CLKEN(1),
+	.WAIT_n(nWAIT),
+	.INT_n(nINT),
+	.NMI_n(nNMI),
+	.BUSRQ_n(nBUSRQ),
+	.M1_n(nM1),
+	.MREQ_n(nMREQ),
+	.IORQ_n(nIORQ),
+	.RD_n(nRD),
+	.WR_n(nWR),
+	.RFSH_n(nRFSH),
+	.HALT_n(nHALT),
+	.BUSAK_n(nBUSACK),
+	.A(A),
+	.DO(DO),
+	.DI(DI),
+	.RestorePC_n(1)
+);
+
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Instantiate MIST ARM I/O
