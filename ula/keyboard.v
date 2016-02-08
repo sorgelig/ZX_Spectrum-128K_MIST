@@ -77,15 +77,14 @@ module keyboard(
    );
    
    // Output addressed row to ULA
-   assign KEYB = (A[8]  == 1'b0) ? keys[0] : 
-                 (A[9]  == 1'b0) ? keys[1] : 
-                 (A[10] == 1'b0) ? keys[2] : 
-                 (A[11] == 1'b0) ? keys[3] : 
-                 (A[12] == 1'b0) ? keys[4] : 
-                 (A[13] == 1'b0) ? keys[5] : 
-                 (A[14] == 1'b0) ? keys[6] : 
-                 (A[15] == 1'b0) ? keys[7] : 
-                                   5'b11111;
+   assign KEYB =  (!A[8]  ? keys[0] : 5'b11111)
+                 &(!A[9]  ? keys[1] : 5'b11111)
+                 &(!A[10] ? keys[2] : 5'b11111)
+                 &(!A[11] ? keys[3] : 5'b11111)
+                 &(!A[12] ? keys[4] : 5'b11111)
+                 &(!A[13] ? keys[5] : 5'b11111)
+                 &(!A[14] ? keys[6] : 5'b11111)
+                 &(!A[15] ? keys[7] : 5'b11111);
 
    always @(negedge nRESET or posedge CLK) begin
       if(!nRESET)begin
