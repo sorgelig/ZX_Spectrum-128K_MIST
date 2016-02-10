@@ -199,7 +199,7 @@ wire [4:0] KEYB;
 keyboard kbd( .*, .CLK(clk_ula));
 
 always_comb begin
-    ula_data =    (A[0]==0) ? { 1'b0, AUDIO_IN, 1'b0, KEYB[4:0] } :
+    ula_data =    (A[0]==0) ? { 1'b1, AUDIO_IN, 1'b1, KEYB[4:0] } :
                  (psg_enable) ? (A[14] ? sound_data : 8'hFF) :
 									   8'hFF;
 end
