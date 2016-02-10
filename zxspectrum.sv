@@ -211,10 +211,9 @@ wire nRESET = locked && !buttons[1] && !status[0] && !status[4] && esxRESET;
 wire io_we = !nIORQ && nRD && !nWR && nM1;
 wire io_rd = !nIORQ && !nRD && nWR && nM1;
 
-T80se cpu (
+T80a cpu (
 	.RESET_n(nRESET),
 	.CLK_n(clk_cpu),
-	.CLKEN(1),
 	.WAIT_n(nWAIT),
 	.INT_n(nINT),
 	.NMI_n(nNMI),
@@ -230,7 +229,9 @@ T80se cpu (
 	.A(A),
 	.DO(DO),
 	.DI(DI),
-	.RestorePC_n(1)
+	.RestorePC_n(1),
+	.RestorePC(0),
+	.RestoreINT(0)
 );
 
 
