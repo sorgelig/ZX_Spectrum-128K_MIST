@@ -1,7 +1,9 @@
 //============================================================================
 // The implementation of the Sinclair ZX Spectrum ULA
 //
-//  Copyright (C) 2014  Goran Devic
+//  Copyright (C) 2015 Sorgelig
+//
+//  Based on sample ZX Spectrum code by Goran Devic
 //
 //  This program is free software; you can redistribute it and/or modify it
 //  under the terms of the GNU General Public License as published by the Free
@@ -22,7 +24,8 @@ module ula
     //-------- Clocks and reset -----------------
     input  wire [1:0]  CLOCK_27,     // Input clock 27 MHz
     input  wire        turbo,        // Turbo speed (3.5 MHz x 2 = 7.0 MHz)
-    input  wire        nCONT,          
+    input  wire        mZX,
+    input  wire        m128,
     input  wire        nRESET,       // KEY0 is reset
     output wire        locked,       // PLL is locked signal
 
@@ -31,7 +34,7 @@ module ula
     output wire        clk_ram,      // SDRAM clock 112MHz
     output wire        clk_sys,      // System master clock (28 MHz)
     output wire        clk_ula,		 // System master clock (14 MHz)
-    output wire        vs_nintr,     // Generates a vertical retrace interrupt
+    output wire        nINT,         // Generates a vertical retrace interrupt
     output wire        SDRAM_CLK,    // SDRAM clock 112MHz phase shifted for chip
 
     //-------- Address and data buses -----------
@@ -40,10 +43,12 @@ module ula
     output wire [7:0]  ula_data,     // Output data
     input  wire        nIORQ,
     input  wire        nMREQ,
+    input  wire        nRFSH,
     input  wire        io_we,        // Write enable to data register through IO
     input  wire        io_rd,               
     output wire        F11,
     output wire        F1,
+	 input  wire [2:0]  page_ram_sel,
 
     //-------- PS/2 Keyboard --------------------
     input  wire        PS2_CLK,
@@ -84,13 +89,13 @@ assign clk_ula = counter0[2]; //14MHz
 assign clk_sys = counter0[1]; //28MHz
 always @(posedge f0) counter0 <= counter0 + 6'd1;
 
-reg clk_cpu2x;
+reg clk_cpu_turbo;
 reg [3:0] counterT = 4'd0;
 always @(posedge f0) begin
 	counterT <= counterT + 4'd1;
-	if(counterT == 4'd7-turbo) begin
+	if(counterT == 4'd13) begin
 		counterT <= 4'd0;
-		clk_cpu2x <= !clk_cpu2x;
+		clk_cpu_turbo <= !clk_cpu_turbo;
 	end
 end
 
@@ -107,6 +112,13 @@ always @(posedge f1) counter1 <= counter1 + 4'd1;
 	assign SDRAM_CLK = f1;           //112MHz
 `endif
 
+wire clk_cpu_std;
+clk_switch switch(
+	.clk_a(clk_cpu_std),
+	.clk_b(clk_cpu_turbo),
+	.select(~turbo),
+	.out_clk(clk_cpu)
+);
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // The ULA output data
@@ -190,7 +202,8 @@ sigma_delta_dac #(.MSBI(10)) dac_r(
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Instantiate ULA's video subsystem
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-video video(.*, .CLK(clk_ula));
+wire [7:0] port_ff;
+video video(.*, .CLK(clk_ula), .clk_cpu(clk_cpu_std));
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Instantiate keyboard support
@@ -199,9 +212,38 @@ wire [4:0] KEYB;
 keyboard kbd( .*, .CLK(clk_ula));
 
 always_comb begin
-    ula_data =    (A[0]==0) ? { 1'b1, AUDIO_IN, 1'b1, KEYB[4:0] } :
+	ula_data =       (A[0]==0) ? { 1'b1, AUDIO_IN, 1'b1, KEYB[4:0] } :
                  (psg_enable) ? (A[14] ? sound_data : 8'hFF) :
-									   8'hFF;
+                                port_ff;
 end
+
+endmodule
+
+module clk_switch 
+(
+   input  clk_a,
+   input  clk_b,
+   input  select,
+   output out_clk
+);
+
+reg q1,q2,q3,q4;
+
+always @ (posedge clk_a) begin
+	q1 <= q4;
+	q3 <= or_one;
+end
+
+always @ (posedge clk_b) begin
+	q2 <= q3;
+	q4 <= or_two;
+end
+
+wire or_one   = (!q1) | (!select);
+wire or_two   = (!q2) | (select);
+wire or_three = (q3)  | (clk_a);
+wire or_four  = (q4)  | (clk_b);
+
+assign out_clk  = or_three & or_four;
 
 endmodule

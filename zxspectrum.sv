@@ -177,7 +177,7 @@ wire        F11;
 wire        F1;
 reg         AUDIO_IN;
 
-ula ula_( .*, .din(DO), .turbo(status[2]), .nCONT(status[3]));
+ula ula( .*, .din(DO), .turbo(status[2]), .mZX(~status[3]), .m128(status[6]));
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Instantiate A-Z80 CPU
@@ -194,9 +194,9 @@ wire nWR;
 wire nRFSH;
 wire nHALT;
 wire nBUSACK;
+wire nINT;
 
 wire nWAIT	= 1'b1;
-wire nINT   = vs_nintr;
 wire nNMI   = esxNMI;
 wire nBUSRQ = !ioctl_download;
 wire nRESET = locked && !buttons[1] && !status[0] && !status[4] && esxRESET;
@@ -261,9 +261,9 @@ begin
 	clk_ps2 <= clk14k_div[10];
 end
 
-user_io #(.STRLEN(121)) user_io (
+user_io #(.STRLEN(141)) user_io (
 	.*,
-	.conf_str("SPECTRUM;CSW;T1,ESXDOS Menu (F11);O5,Autoload ESXDOS,No,Yes;O2,CPU Speed,3.5MHz,4MHz;O3,Contended timings,On,Off;T4,Reset"),
+	.conf_str("SPECTRUM;CSW;T1,ESXDOS Menu (F11);O5,Autoload ESXDOS,No,Yes;O2,CPU Speed,3.5MHz,4MHz;O3,Video Type,ZX,Pent;O6,Video Version,48k,128k;T4,Reset"),
 
 	// ps2 keyboard emulation
 	.ps2_clk(clk_ps2),				// 12-16khz provided by core
