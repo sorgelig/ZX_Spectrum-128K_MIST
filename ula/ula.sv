@@ -141,11 +141,15 @@ wire [7:0] psg_ch_b;
 wire [7:0] psg_ch_c;
 wire psg_enable = A[0] && A[15] && !A[1];
 
+wire psg_dir   = psg_delay && io_we && psg_enable;
+reg  psg_delay = 0;
+always @(negedge clk_cpu) psg_delay <= io_we && psg_enable;
+
 ay8910 ay8910(
 	.CLK(clk_psg),
 	.EN(1),
 	.RESET(!nRESET),
-	.BDIR(io_we && clk_cpu && psg_enable),
+	.BDIR(psg_dir),
 	.CS(1),
 	.BC(A[14]),
 	.DI(din),
@@ -182,7 +186,7 @@ keyboard kbd( .*, .CLK(clk_ula));
 
 always_comb begin
     ula_data =    (A[0]==0) ? { 1'b0, AUDIO_IN, 1'b0, KEYB[4:0] } :
-					(psg_enable) ? sound_data :
+                 (psg_enable) ? (A[14] ? sound_data : 8'hFF) :
 									   8'hFF;
 end
 
