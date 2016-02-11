@@ -144,7 +144,7 @@ wire psg_enable = A[0] && A[15] && !A[1];
 wire psg_dir   = psg_delay && io_we && psg_enable;
 reg  psg_delay = 0;
 always @(negedge clk_cpu) psg_delay <= io_we && psg_enable;
-
+/*
 ay8910 ay8910(
 	.CLK(clk_psg),
 	.EN(1),
@@ -157,6 +157,20 @@ ay8910 ay8910(
 	.CHANNEL_A(psg_ch_a),
 	.CHANNEL_B(psg_ch_b),
 	.CHANNEL_C(psg_ch_c)
+);
+*/
+ym2149 ym2149(
+	.CLK(clk_psg),
+	.RESET(!nRESET),
+	.BDIR(psg_dir),
+	.BC(A[14]),
+	.DI(din),
+	.DO(sound_data),
+	.CHANNEL_A(psg_ch_a),
+	.CHANNEL_B(psg_ch_b),
+	.CHANNEL_C(psg_ch_c),
+	.SEL(0),
+	.MODE(0)
 );
 
 sigma_delta_dac #(.MSBI(10)) dac_l (
