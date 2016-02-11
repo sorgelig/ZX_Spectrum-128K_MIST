@@ -57,9 +57,6 @@ module zxspectrum
 );
 `default_nettype none
 
-
-`define DIVMMC_ROM
-
 ////////////////////////////////////////////////////////////////////////
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -69,11 +66,8 @@ always_comb
 begin
     case ({nM1,nMREQ,nIORQ,nRD,nWR})
         // ----------------------- Memory read -------------------------------
-		  5'b10101,
-        5'b00101: DI = (A[15] || A[14]) ? sram_data : 
-                             divmmc_rom ? divmmc_rom_data :
-                                ext_ram ? sram_data :
-                                            vram_data_cpu;
+        5'b10101,
+        5'b00101: DI = sram_data;
 
         // ------------------------- IO read ---------------------------------
         5'b11001: DI = divmmc_active_io ? divmmc_data :
@@ -89,39 +83,26 @@ end
 // Instantiate Memory
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-// VRAM 16K blocks:
-// 00 - ROM0
-// 01 - ROM1
-// 10 - Screen 0,1 (8k*2)
-wire [7:0] vram_data_cpu;
 wire vram_we = ((A[15:13] == 3'b010) || ((A[15:13] == 3'b110) && page_ram_sel[2] && page_ram_sel[0])) && !nMREQ && nRD && !nWR;
-wire [15:0] vram_addr_cpu =  (A[15:14] == 2'b00) ? {1'b0, page_rom_sel, A[13:0]} :
-							        (A[15:14] == 2'b01) ? {3'b100, A[12:0]} :
-		                           page_ram_sel[1] ? {3'b101, A[12:0]} :
-										                     {3'b100, A[12:0]};
-
-// "A" side is the CPU side, "B" side is the VGA image generator
 vram vram(
-    .clock      (clk_sys),
+    .clock(clk_sys),
 
-    .address_a  (vram_addr_cpu), // Address in to the RAM from the CPU side
-    .data_a     (DO),            // Data in to the RAM from the CPU side
-    .q_a        (vram_data_cpu), // Data out from the RAM into the data bus selector
-    .wren_a     (vram_we),
+    .wraddress({A[15], A[12:0]}),
+    .data(DO),
+    .wren(vram_we),
 
-    .address_b  ({2'b10, page_shadow_scr, vram_address}),
-    .data_b     (0),
-    .q_b        (vram_data),
-    .wren_b     (0)
+    .rdaddress({page_shadow_scr, vram_address}),
+    .q(vram_data)
 );
 
 wire [7:0] sram_data;
 wire sram_we = (ext_ram_write || (A[15:14] > 2'b00)) && !nMREQ && nRD && !nWR;
 wire sram_rd = !nMREQ && !nRD && nWR;
-wire [24:0] sram_addr = (A[15:14] == 2'b00) ? divmmc_addr :
-                        (A[15:14] == 2'b01) ? {11'd5, A[13:0]} :
-								(A[15:14] == 2'b10) ? {11'd2, A[13:0]} :
-								                      {8'd0, page_ram_sel, A[13:0]};
+wire [24:0] sram_addr = (A[15:14] == 2'b01) ? {11'd5, A[13:0]} :
+                        (A[15:14] == 2'b10) ? {11'd2, A[13:0]} :
+                        (A[15:14] == 2'b11) ? {8'd0, page_ram_sel, A[13:0]} :
+                                    ext_ram ? divmmc_addr :
+                                              {10'b0000101111, page_rom_sel, A[13:0]};
 
 wire ioctl_req = (!nRESET || !nBUSACK) && !nBUSRQ;
 
@@ -171,7 +152,6 @@ wire        clk_sys;       // 28MHz for system synchronization
 wire        clk_ula;       // 14MHz
 wire [12:0] vram_address;
 wire [7:0]  vram_data;
-wire        vs_nintr;      // Generates a vertical retrace interrupt
 wire [7:0]  ula_data;
 wire        F11;
 wire        F1;
@@ -180,7 +160,7 @@ reg         AUDIO_IN;
 ula ula( .*, .din(DO), .turbo(status[2]), .mZX(~status[3]), .m128(status[6]));
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Instantiate A-Z80 CPU
+// Instantiate CPU
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 wire [15:0] A;  // Global address bus
 wire  [7:0] DI;  // CPU data input bus
@@ -310,14 +290,6 @@ end
 integer initRESET = 32000000;
 always @(posedge clk_sys) begin 
 	if(initRESET!=0) begin 
-
-`ifdef DIVMMC_ROM
-		if(initRESET == 1) begin 
-			esxdos_downloaded[0] <= 1'b1;
-			force_erase <=1'b1;
-		end
-`endif
-
 		initRESET <= initRESET - 1;
 	end
 end
@@ -349,27 +321,9 @@ divmmc divmmc(
 	.sd_activity(divmmc_sd_activity)
 );
 
-`ifdef DIVMMC_ROM
-
-wire divmmc_rom = (A[15:13]==3'b000) && ext_ram;
-wire [7:0] divmmc_rom_data;
-
-divmmc_rom esxrom(
-    .clock   (clk_sys),
-    .address (A[12:0]),
-    .q       (divmmc_rom_data)
-);
-
-`else
-
-wire divmmc_rom = 1'b0;
-wire [7:0] divmmc_rom_data = 8'd0;
-
-always @ (posedge ioctl_download) begin
-	if(ioctl_index == 5'b00000) esxdos_downloaded[0] <= 1'b1;
+always @ (posedge ioctl_wr) begin
+	if(ioctl_addr == 25'h181fff) esxdos_downloaded[0] <= 1'b1;
 end
-
-`endif
 
 ////////////////////////////////////////////////////////////////////////////////////
 
