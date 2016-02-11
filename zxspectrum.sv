@@ -67,20 +67,21 @@ module zxspectrum
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 always_comb
 begin
-    case ({nMREQ,nIORQ,nRD,nWR})
-        // -------------------------------- Memory read --------------------------------
-        4'b0101: DI =         (A[15:14] > 2'b00) ? sram_data : 
-                    `ifdef DIVMMC_ROM divmmc_rom ? divmmc_rom_data : `endif
-                                         ext_ram ? sram_data :
-                                                   vram_data_cpu;
+    case ({nM1,nMREQ,nIORQ,nRD,nWR})
+        // ----------------------- Memory read -------------------------------
+		  5'b10101,
+        5'b00101: DI = (A[15] || A[14]) ? sram_data : 
+                             divmmc_rom ? divmmc_rom_data :
+                                ext_ram ? sram_data :
+                                            vram_data_cpu;
 
-        // ---------------------------------- IO read ----------------------------------
-        4'b1001: DI =                     (!nM1) ? 8'hFF :
-                                divmmc_active_io ? divmmc_data :
-		                           (A[7:0]==8'h1F) ? {2'b00, joystick_0[5:0] | joystick_1[5:0]} :
-                                                   ula_data;
+        // ------------------------- IO read ---------------------------------
+        5'b11001: DI = divmmc_active_io ? divmmc_data :
+                            // page_acc ? page_data   :
+                        (A[7:0]==8'h1F) ? {2'b00, joystick_0[5:0] | joystick_1[5:0]} :
+                                          ula_data;
 
-        default: DI = 8'hFF;
+        default:  DI = 8'hFF;
     endcase
 end
 
@@ -145,27 +146,19 @@ sram sram( .*,
                       sram_rd         )
 );
 
-reg       page_shadow_scr  = 1'b0;
-reg       page_reg_disable = 1'b0;
-reg [2:0] page_ram_sel     = 3'b000;
-reg       page_rom_sel     = 1'b0;
+reg  [7:0] page_data        = 8'd0;
+wire       page_reg_disable = page_data[5];
+wire       page_rom_sel     = page_data[4];
+wire       page_shadow_scr  = page_data[3];
+wire [2:0] page_ram_sel     = page_data[2:0];
 
-wire page_write = io_we && A[0] && !(A[15] || A[1]);
+wire page_acc   = !A[15] && !A[1];
+wire page_write = io_we && page_acc && !page_reg_disable;
+wire force_reset = buttons[1] || status[0] || status[4];
 
-always @ (posedge clk_cpu or negedge nRESET) begin
-	if (!nRESET) begin
-		page_reg_disable <= 1'b0;
-		page_rom_sel     <= 1'b0;
-		page_shadow_scr  <= 1'b0;
-		page_ram_sel     <= 3'b000;
-	end else begin
-		if (page_write && !page_reg_disable) begin
-			page_reg_disable <= DO[5];
-			page_rom_sel     <= DO[4];
-			page_shadow_scr  <= DO[3];
-			page_ram_sel     <= DO[2:0];
-		end
-	end
+always @ (negedge clk_cpu) begin
+	if (force_reset) page_data <= 8'd0;
+		else if (page_write) page_data <= DO;
 end
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -368,6 +361,9 @@ divmmc_rom esxrom(
 );
 
 `else
+
+wire divmmc_rom = 1'b0;
+wire [7:0] divmmc_rom_data = 8'd0;
 
 always @ (posedge ioctl_download) begin
 	if(ioctl_index == 5'b00000) esxdos_downloaded[0] <= 1'b1;
