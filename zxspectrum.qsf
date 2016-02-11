@@ -166,7 +166,7 @@ set_global_assignment -name FITTER_EFFORT "AUTO FIT"
 
 # EDA Netlist Writer Assignments
 # ==============================
-set_global_assignment -name EDA_SIMULATION_TOOL "ModelSim-Altera (VHDL)"
+set_global_assignment -name EDA_SIMULATION_TOOL "<None>"
 
 # Assembler Assignments
 # =====================
@@ -195,7 +195,7 @@ set_global_assignment -name OUTPUT_IO_TIMING_FAR_END_VMEAS "HALF SIGNAL SWING" -
 
 	# EDA Netlist Writer Assignments
 	# ==============================
-set_global_assignment -name EDA_OUTPUT_DATA_FORMAT VHDL -section_id eda_simulation
+set_global_assignment -name EDA_OUTPUT_DATA_FORMAT NONE -section_id eda_simulation
 
 # end EDA_TOOL_SETTINGS(eda_simulation)
 # -------------------------------------
