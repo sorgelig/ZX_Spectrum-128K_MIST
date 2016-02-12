@@ -48,6 +48,8 @@ module ula
     input  wire        io_rd,               
     output wire        F11,
     output wire        F1,
+	 output wire        warm_reset,
+	 output wire        cold_reset,
 	 input  wire [2:0]  page_ram_sel,
 
     //-------- PS/2 Keyboard --------------------

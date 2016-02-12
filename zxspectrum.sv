@@ -135,10 +135,9 @@ wire [2:0] page_ram_sel     = page_data[2:0];
 
 wire page_acc   = !A[15] && !A[1];
 wire page_write = io_we && page_acc && !page_reg_disable;
-wire force_reset = buttons[1] || status[0] || status[4];
 
 always @ (negedge clk_cpu) begin
-	if (force_reset) page_data <= 8'd0;
+	if (cold_reset) page_data <= 8'd0;
 		else if (page_write) page_data <= DO;
 end
 
@@ -155,6 +154,8 @@ wire [7:0]  vram_data;
 wire [7:0]  ula_data;
 wire        F11;
 wire        F1;
+wire        warm_reset;
+wire        cold_reset;
 reg         AUDIO_IN;
 
 ula ula( .*, .din(DO), .turbo(status[2]), .mZX(~status[3]), .m128(status[6]));
@@ -179,7 +180,7 @@ wire nINT;
 wire nWAIT	= 1'b1;
 wire nNMI   = esxNMI;
 wire nBUSRQ = !ioctl_download;
-wire nRESET = locked && !buttons[1] && !status[0] && !status[4] && esxRESET;
+wire nRESET = locked && !buttons[1] && !status[0] && !status[4] && esxRESET && !cold_reset && !warm_reset;
 
 wire io_we = !nIORQ && nRD && !nWR && nM1;
 wire io_rd = !nIORQ && !nRD && nWR && nM1;
@@ -294,8 +295,9 @@ always @(posedge clk_sys) begin
 	end
 end
 
-always @(negedge esxRQ) begin
-	esxdos_downloaded <= {esxdos_downloaded[0], esxdos_downloaded[0]};
+always @(negedge esxRQ, posedge cold_reset) begin
+	if(cold_reset) esxdos_downloaded[1] <= 0;
+		else esxdos_downloaded[1] <= esxdos_downloaded[0];
 end
 
 assign LED = !(!divmmc_sd_activity || ioctl_download);
@@ -323,6 +325,10 @@ divmmc divmmc(
 
 always @ (posedge ioctl_wr) begin
 	if(ioctl_addr == 25'h181fff) esxdos_downloaded[0] <= 1'b1;
+end
+
+always @ (posedge clk_sys) begin
+	force_erase <= cold_reset;
 end
 
 ////////////////////////////////////////////////////////////////////////////////////

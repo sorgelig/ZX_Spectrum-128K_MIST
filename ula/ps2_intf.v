@@ -54,12 +54,12 @@ module ps2_intf #(parameter filter_length=8)(
    output reg       ERROR
 );
    
-   reg [filter_length-1:0] clk_filter;
+   reg [filter_length-1:0] clk_filter = 8'b11111111;
    
-   reg       ps2_clk_in;
-   reg       ps2_dat_in;
+   reg       ps2_clk_in = 1'b1;
+   reg       ps2_dat_in = 1'b1;
    // Goes high when a clock falling edge is detected
-   reg       clk_edge;
+   reg       clk_edge   = 1'b0;
    reg [3:0] bit_count;
    reg [8:0] shiftreg;
    reg       parity;

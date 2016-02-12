@@ -50,21 +50,26 @@ module keyboard(
    output [4:0] KEYB,
    
    output reg   F11 = 1'b0,
-   output reg   F1  = 1'b0
+   output reg   F1  = 1'b0,
+	output reg   warm_reset = 1'b0,
+	output reg   cold_reset = 1'b0
 );
-   
+
    // Interface to PS/2 block
    wire [7:0]   keyb_data;
    wire         keyb_valid;
   
    // Internal signals
    reg [4:0]    keys[7:0];
-   reg          release_btn;
-   
+   reg          release_btn = 1'b0;
+	
+	reg ctrl = 0;
+	reg alt  = 0;
+
    // PS/2 interface
    ps2_intf ps2(
       CLK,
-      nRESET,
+      1, 
 		
 		// PS/2 interface (could be bi-dir)
       PS2_CLK,
@@ -86,10 +91,12 @@ module keyboard(
                  &(!A[14] ? keys[6] : 5'b11111)
                  &(!A[15] ? keys[7] : 5'b11111);
 
-   always @(negedge nRESET or posedge CLK) begin
-      if(!nRESET)begin
-         release_btn <= 1'b0;
-         
+	reg old_nRESET = 1;
+
+   always @(posedge CLK) begin
+		old_nRESET <= nRESET;
+
+      if(old_nRESET && !nRESET)begin
          keys[0] <= 5'b11111;
          keys[1] <= 5'b11111;
          keys[2] <= 5'b11111;
@@ -98,8 +105,6 @@ module keyboard(
          keys[5] <= 5'b11111;
          keys[6] <= 5'b11111;
          keys[7] <= 5'b11111;
-         F11     <= 1'b0;
-         F1      <= 1'b0;
       end else begin
          if (keyb_valid) begin
             if (keyb_data == 8'he0)
@@ -111,6 +116,22 @@ module keyboard(
             else begin
                // Cancel extended/release flags for next time
                release_btn <= 1'b0;
+
+               case (keyb_data)
+                  8'h14: ctrl <= !release_btn;
+                  8'h11: alt  <= !release_btn;
+                  8'h05: F1   <= !release_btn;
+                  8'h78: begin 
+									warm_reset <= 0;
+									cold_reset <= 0;
+									F11 <= 0;
+									if(!release_btn) begin
+										if(ctrl) warm_reset <= 1;
+											else if(alt) cold_reset <= 1;
+												else F11 <=1;
+									end
+								end
+					endcase
 
                case (keyb_data)
                   8'h12 : keys[0][0] <= release_btn; // Left shift (CAPS SHIFT)
@@ -196,9 +217,6 @@ module keyboard(
 									keys[0][0] <= release_btn;
 									keys[7][0] <= release_btn;
 								end
-
-                  8'h78 : F11 <= !release_btn; // F11 key
-                  8'h05 : F1  <= !release_btn; // F1 key
 						default: 
 								;
                endcase
