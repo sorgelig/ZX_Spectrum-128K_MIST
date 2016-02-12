@@ -87,7 +87,7 @@ wire vram_we = ((A[15:13] == 3'b010) || ((A[15:13] == 3'b110) && page_ram_sel[2]
 vram vram(
     .clock(clk_sys),
 
-    .wraddress({A[15], A[12:0]}),
+    .wraddress({A[15] & page_ram_sel[1], A[12:0]}),
     .data(DO),
     .wren(vram_we),
 
