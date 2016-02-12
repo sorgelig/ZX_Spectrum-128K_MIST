@@ -65,6 +65,7 @@ module keyboard(
 	
 	reg ctrl = 0;
 	reg alt  = 0;
+	reg shift= 0;
 
    // PS/2 interface
    ps2_intf ps2(
@@ -118,6 +119,7 @@ module keyboard(
                release_btn <= 1'b0;
 
                case (keyb_data)
+                  8'h59: shift<= !release_btn;
                   8'h14: ctrl <= !release_btn;
                   8'h11: alt  <= !release_btn;
                   8'h05: F1   <= !release_btn;
@@ -135,7 +137,6 @@ module keyboard(
 
                case (keyb_data)
                   8'h12 : keys[0][0] <= release_btn; // Left shift (CAPS SHIFT)
-                  8'h59 : keys[0][0] <= release_btn; // Right shift (CAPS SHIFT)
                   8'h1a : keys[0][1] <= release_btn; // Z
                   8'h22 : keys[0][2] <= release_btn; // X
                   8'h21 : keys[0][3] <= release_btn; // C
@@ -216,6 +217,57 @@ module keyboard(
                   8'h76 : begin // Escape (CAPS SPACE)
 									keys[0][0] <= release_btn;
 									keys[7][0] <= release_btn;
+								end
+						8'h49 : begin // . <
+									keys[7][1] <= release_btn;
+									if(shift) keys[2][4] <= release_btn;
+										else keys[7][2] <= release_btn;
+								end
+						8'h41 : begin // , >
+									keys[7][1] <= release_btn;
+									if(shift) keys[2][3] <= release_btn;
+										else keys[7][3] <= release_btn;
+								end
+						8'h4A : begin // / ?
+									keys[7][1] <= release_btn;
+									if(shift) keys[0][3] <= release_btn;
+										else keys[0][4] <= release_btn;
+								end
+						8'h4C : begin // ; :
+									keys[7][1] <= release_btn;
+									if(shift) keys[0][1] <= release_btn;
+										else keys[5][1] <= release_btn;
+								end
+						8'h52 : begin // " '
+									keys[7][1] <= release_btn;
+									if(shift) keys[4][3] <= release_btn;
+										else keys[5][0] <= release_btn;
+								end
+						8'h54 : begin // (
+									keys[7][1] <= release_btn;
+									keys[4][2] <= release_btn;
+								end
+						8'h5B : begin // )
+									keys[7][1] <= release_btn;
+									keys[4][1] <= release_btn;
+								end
+						8'h4E : begin // - _
+									keys[7][1] <= release_btn;
+									if(shift) keys[4][0] <= release_btn;
+										else keys[6][3] <= release_btn;
+								end
+						8'h55 : begin // = +
+									keys[7][1] <= release_btn;
+									if(shift) keys[6][2] <= release_btn;
+										else keys[6][1] <= release_btn;
+								end
+						8'h0E : begin // '
+									keys[7][1] <= release_btn;
+									keys[4][3] <= release_btn;
+								end
+						8'h5D : begin // *
+									keys[7][1] <= release_btn;
+									keys[7][4] <= release_btn;
 								end
 						default: 
 								;
