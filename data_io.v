@@ -95,7 +95,8 @@ always@(posedge sck, posedge ss) begin
 			// prepare 
 			if(sdi) begin
 				case(index) 
-							1: waddr <= 25'h400000; // tape buffer at 4MB 
+							1: waddr <= 25'h200000; // TRD buffer  at 2MB
+							2: waddr <= 25'h400000; // tape buffer at 4MB 
 					default: waddr <= 25'h170000; // boot rom
 				endcase
 				downloading <= 1'b1; 

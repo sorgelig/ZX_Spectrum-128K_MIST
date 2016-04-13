@@ -366,6 +366,7 @@ set_global_assignment -name VERILOG_FILE vram.v
 set_global_assignment -name VERILOG_FILE sram.v
 set_global_assignment -name VERILOG_FILE spi.v
 set_global_assignment -name VERILOG_FILE sd_card.v
+set_global_assignment -name VERILOG_FILE wd1793.v
 set_global_assignment -name VERILOG_FILE divmmc.v
 set_global_assignment -name VERILOG_FILE user_io.v
 set_global_assignment -name VERILOG_FILE tape.v

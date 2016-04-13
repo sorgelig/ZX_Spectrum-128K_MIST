@@ -57,7 +57,7 @@ module zxspectrum
 );
 `default_nettype none
 
-assign      LED = ~(divmmc_sd_activity | ioctl_erasing | ioctl_download);
+assign      LED = ~(divmmc_sd_activity | ioctl_erasing | ioctl_download | fdd_read);
 
 
 //////////////////   MIST ARM I/O   ///////////////////
@@ -86,12 +86,12 @@ reg  [10:0] clk14k_div;
 wire        clk_ps2 = clk14k_div[10];
 always @(posedge clk_sys) clk14k_div <= clk14k_div + 1'b1;
 
-user_io #(.STRLEN(120)) user_io
+user_io #(.STRLEN(127)) user_io
 (
 	.*,
 	.conf_str
 	(
-        "SPECTRUM;CSW;O5,Autoload ESXDOS,No,Yes;O2,CPU Speed,3.5MHz,4MHz;O3,Video Type,ZX,Pent;O6,Video Version,48k,128k;T4,Reset"
+        "SPECTRUM;TRD;F1,CSW;O5,Autoload ESXDOS,No,Yes;O2,CPU Speed,3.5MHz,4MHz;O3,Video Type,ZX,Pent;O6,Video Version,48k,128k;T4,Reset"
 	),
 
 	// ps2 keyboard emulation
@@ -177,12 +177,13 @@ T80a cpu
 );
 
 always_comb begin
-	casex({nMREQ, ~nM1 | nIORQ | nRD, divmmc_sel, addr[7:0]==8'h1F})
-		'b0XXX: cpu_din = ram_dout;
-		'b101X: cpu_din = divmmc_dout;
-		'b1001: cpu_din = {2'b00, joystick_0[5:0] | joystick_1[5:0]};
-		'b1000: cpu_din = ula_dout;
-		'b11XX: cpu_din = 8'hFF;
+	casex({nMREQ, ~nM1 | nIORQ | nRD, fdd_sel, divmmc_sel, addr[7:0]==8'h1F})
+		'b0XXXX: cpu_din = ram_dout;
+		'b101XX: cpu_din = fdd_dout;
+		'b1001X: cpu_din = divmmc_dout;
+		'b10001: cpu_din = {2'b00, joystick_0[5:0] | joystick_1[5:0]};
+		'b10000: cpu_din = ula_dout;
+		'b11XXX: cpu_din = 8'hFF;
 	endcase
 end
 
@@ -207,14 +208,15 @@ reg   [7:0] ram_din;
 reg         ram_we;
 reg         ram_rd;
 always_comb begin
-	casex({dma, tape_req, ext_ram, addr[15:14]})
-		'b1XX_XX: ram_addr = ioctl_addr;
-		'b01X_XX: ram_addr = tape_addr;
-		'b001_00: ram_addr = divmmc_addr;
-		'b000_00: ram_addr = {5'h17, page_rom, addr[13:0]};
-		'b00X_01: ram_addr = {       3'd5,     addr[13:0]};
-		'b00X_10: ram_addr = {       3'd2,     addr[13:0]};
-		'b00X_11: ram_addr = {       page_ram, addr[13:0]};
+	casex({dma, tape_req, fdd_read, ext_ram, addr[15:14]})
+		'b1XXX_XX: ram_addr = ioctl_addr;
+		'b01XX_XX: ram_addr = tape_addr;
+		'b001X_XX: ram_addr = {2'd2, fdd_addr};
+		'b0001_00: ram_addr = divmmc_addr;
+		'b0000_00: ram_addr = {5'h17, page_rom, addr[13:0]};
+		'b000X_01: ram_addr = {       3'd5,     addr[13:0]};
+		'b000X_10: ram_addr = {       3'd2,     addr[13:0]};
+		'b000X_11: ram_addr = {       page_ram, addr[13:0]};
 	endcase
 
 	casex({dma, tape_req})
@@ -232,7 +234,7 @@ always_comb begin
 	casex({dma, tape_req})
 		'b1X: ram_rd = 0;
 		'b01: ram_rd = tape_rd;
-		'b00: ram_rd = ~nMREQ & ~nRD;
+		'b00: ram_rd = (fdd_read | ~nMREQ) & ~nRD;
 	endcase
 end
 
@@ -252,7 +254,7 @@ sram ram
 reg         test_rom;
 reg   [7:0] page_reg     = 0;
 wire        page_disable = page_reg[5];
-wire  [1:0] page_rom     = {~test_rom, page_reg[4] & ~test_rom};
+wire  [1:0] page_rom     = {~trdos_en & ~test_rom, page_reg[4] & ~test_rom};
 wire        page_scr     = page_reg[3];
 wire  [2:0] page_ram     = page_reg[2:0];
 wire        page_write   = ~nIORQ & ~nWR & nM1 & ~addr[15] & ~addr[1] & ~page_disable;
@@ -283,7 +285,7 @@ wire        cold_reset;
 wire        test_reset;
 reg         AUDIO_IN;
 
-ula ula( .*, .din(cpu_dout), .dout(ula_dout), .turbo(status[2]), .mZX(~status[3]), .m128(status[6]));
+ula ula( .*, .nIORQ(trdos_en | nIORQ), .din(cpu_dout), .dout(ula_dout), .turbo(status[2]), .mZX(~status[3]), .m128(status[6]));
 
 
 //////////////////   DIVMMC   //////////////////
@@ -303,7 +305,7 @@ always @(posedge clk_ps2) begin
 	sRST1 <= F11 | joystick_0[7] | joystick_1[7];
 	sRST2 <= sRST1;
 
-	if(sRST2 && ~sRST1) esxRQ <= 1;
+	if(sRST2 & ~sRST1 & ~fdd_ready) esxRQ <= 1;
 		else esxRQ <= 0;
 end
 
@@ -342,6 +344,70 @@ always @(posedge ioctl_wr) if(ioctl_addr == 25'h181fff) esxdos_downloaded[0] <= 
 always @(posedge clk_sys) force_erase <= cold_reset;
 
 
+///////////////////   FDC   ///////////////////
+reg         trdos_en = 0;
+wire  [7:0] wd_dout;
+wire [19:0] fdd_addr;
+wire [19:0] fdd_size;
+wire        fdd_rd;
+reg         fdd_ready = 0;
+reg   [1:0] fdd_drive;
+reg         fdd_side;
+reg         fdd_reset;
+wire        fdd_intrq;
+wire        fdd_drq;
+wire        fdd_sel  = trdos_en & addr[2] & addr[1] & ~nIORQ & nM1;
+wire        fdd_read = fdd_rd & fdd_sel;
+wire  [7:0] fdd_dout = addr[7] ? {fdd_intrq, fdd_drq, 6'h3F} : wd_dout;
+
+wd1793 fdd
+(
+	.clk(clk_cpu),
+	.reset(~fdd_reset),
+	.ce(fdd_sel & ~addr[7]),
+	.rd(~nRD),
+	.wr(~nWR),
+	.addr(addr[6:5]),
+	.din(cpu_dout),
+	.dout(wd_dout),
+	.drq(fdd_drq),
+	.intrq(fdd_intrq),
+
+	.buff_size(fdd_size),
+	.buff_addr(fdd_addr),
+	.buff_read(fdd_rd),
+	.buff_din(ram_dout),
+
+	.size_code(1),
+	.side(fdd_side),
+	.ready(!fdd_drive & fdd_ready)
+);
+
+always @(negedge ioctl_download, posedge cold_reset) begin
+	if(cold_reset) begin
+		fdd_ready <= 0;
+		fdd_size  <= 0;
+	end else begin
+		if((ioctl_index == 1) & ~esxdos_ready) begin
+			fdd_ready <= 1;
+			fdd_size  <= ioctl_addr[19:0];
+		end
+	end
+end
+
+wire m_pos = ~nM1 & ~nMREQ;
+always @(posedge m_pos, negedge nRESET) begin
+	if(!nRESET) begin
+		trdos_en  <= 0;
+	end else begin
+		if(addr[15:14]) trdos_en <= 0;
+			else if((addr[13:8] == 6'h3D) & page_rom[0] & fdd_ready) trdos_en <= 1;
+	end
+end
+
+always @(negedge nWR) if(fdd_sel & addr[7]) {fdd_side, fdd_reset, fdd_drive} <= {~cpu_dout[4], cpu_dout[2], cpu_dout[1:0]};
+
+
 ///////////////////   TAPE   ///////////////////
 wire        tape_req;
 wire        tape_rd;
@@ -355,7 +421,7 @@ tape tape
 	.audio_out(AUDIO_IN),
 	.pause(F1),
 
-	.downloading((ioctl_index == 1) && ioctl_download),
+	.downloading((ioctl_index == 2) && ioctl_download),
 	.addr_in(ioctl_addr),
 
 	.active(tape_req),
