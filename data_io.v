@@ -22,28 +22,27 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-module data_io (
+module data_io
+(
 	// io controller spi interface
-	input         sck,
-	input         ss,
-	input         sdi,
-	input         force_erase,
+	input            sck,
+	input            ss,
+	input            sdi,
+	input            force_erase,
 
-	output        downloading,   // signal indicating an active download
-	output [24:0] size,          // number of bytes in input buffer
-   output reg [4:0]  index,         // menu index used to upload the file
-	 
+	output reg       downloading = 0, // signal indicating an active download
+	output reg       erasing = 0,     // signal indicating an active erasing
+   output reg [4:0] index,           // menu index used to upload the file
+
 	// external ram interface
-	input 			clk,
-	output reg     wr = 0,
-	output [24:0]  a,
-	output [7:0]   d
+	input 			  clk,
+	output reg       wr = 0,
+	output    [24:0] addr,
+	output     [7:0] dout
 );
 
-assign downloading = downloading_reg | erasing;
-assign d = erasing ? 8'h00      : data;
-assign a = erasing ? erase_addr : write_a;
-assign size = addr - 25'h200000;   // only valid for tape
+assign dout = erasing ? 8'h00      : data;
+assign addr = erasing ? erase_addr : write_a;
 
 // *********************************************************************************
 // spi client
@@ -56,8 +55,8 @@ reg [7:0]  cmd;
 reg [7:0]  data;
 reg [4:0]  cnt;
 
-reg [24:0] addr;
-reg [24:0] write_a    = 25'h200000;
+reg [24:0] waddr;
+reg [24:0] write_a    = 25'h400000;
 reg [24:0] erase_addr = 25'h1a0000;
 reg rclk = 1'b0;
 
@@ -66,9 +65,6 @@ reg erase_trigger;
 localparam UIO_FILE_TX      = 8'h53;
 localparam UIO_FILE_TX_DAT  = 8'h54;
 localparam UIO_FILE_INDEX   = 8'h55;
-
-reg downloading_reg = 1'b0;
-reg erasing = 1'b0;
 
 // data_io has its own SPI interface to the io controller
 always@(posedge sck, posedge ss) begin
@@ -84,9 +80,8 @@ always@(posedge sck, posedge ss) begin
 			sbuf <= { sbuf[5:0], sdi};
 
 		// increase target address after write
-		if(rclk)
-			addr <= addr + 25'd1;
-	 
+		if(rclk) waddr <= waddr + 25'd1;
+
 		// count 0-7 8-15 8-15 ... 
 		if(cnt < 15) 	cnt <= cnt + 4'd1;
 		else				cnt <= 4'd8;
@@ -99,49 +94,49 @@ always@(posedge sck, posedge ss) begin
 		if((cmd == UIO_FILE_TX) && (cnt == 15)) begin
 			// prepare 
 			if(sdi) begin
-				if(index == 0) addr <= 25'h178000;  // esxdos at 1.5MB
-				else				addr <= 25'h200000;  // tape buffer at 2MB
-				
-				downloading_reg <= 1'b1; 
+				case(index) 
+							1: waddr <= 25'h400000; // tape buffer at 4MB 
+					default: waddr <= 25'h170000; // boot rom
+				endcase
+				downloading <= 1'b1; 
 			end else begin
-				downloading_reg <= 1'b0; 
-					
+				write_a <= waddr;
+				downloading <= 1'b0;
+
 				// in case of rom download we also erase the memory
 				// area at 1a0000 to make sure divmmc ram is empty
 				if(index == 0) erase_trigger <= 1'b1;
 			end
 		end
-		
+
 		// command 0x54: UIO_FILE_TX
 		if((cmd == UIO_FILE_TX_DAT) && (cnt == 15)) begin
-			write_a <= addr;
+			write_a <= waddr;
 			data <= {sbuf, sdi};
 			rclk <= 1'b1;
 		end
-		
+
       // expose file (menu) index
       if((cmd == UIO_FILE_INDEX) && (cnt == 15))
 			index <= {sbuf[3:0], sdi};
 	end
 end
 
-reg rclkD, rclkD2;
-reg eraseD, eraseD2;
-reg [4:0] erase_clk_div;
-
 always@(posedge clk) begin
-	// bring rclk from spi clock domain into c64 clock domain
+	reg rclkD, rclkD2;
+	reg eraseD, eraseD2;
+	reg [4:0] erase_clk_div;
+
 	rclkD <= rclk;
 	rclkD2 <= rclkD;
 	wr <= 1'b0;
-	
-	if(rclkD && !rclkD2)
-		wr <= 1'b1;
+
+	if(rclkD && !rclkD2) wr <= 1'b1;
 
 	// download may trigger an erase afterwards
 	eraseD <= erase_trigger | force_erase;
 	eraseD2 <= eraseD;
-	
+
 	// start erasing
 	if(eraseD && !eraseD2) begin
 		erase_clk_div <= 5'd0;

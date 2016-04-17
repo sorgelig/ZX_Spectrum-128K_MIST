@@ -52,8 +52,8 @@ set_location_assignment PIN_22 -to CLOCK_50[0]
 set_location_assignment PIN_23 -to CLOCK_50[1]
 set_location_assignment PIN_128 -to CLOCK_32[0]
 set_location_assignment PIN_129 -to CLOCK_32[1]
-set_location_assignment PIN_54 -to CLOCK_27[0]
-set_location_assignment PIN_55 -to CLOCK_27[1]
+set_location_assignment PIN_54 -to CLOCK_27
+set_location_assignment PIN_55 -to CLOCK_27_1
 set_location_assignment PIN_144 -to VGA_R[5]
 set_location_assignment PIN_143 -to VGA_R[4]
 set_location_assignment PIN_142 -to VGA_R[3]
@@ -149,7 +149,7 @@ set_global_assignment -name PHYSICAL_SYNTHESIS_ASYNCHRONOUS_SIGNAL_PIPELINING ON
 set_global_assignment -name PHYSICAL_SYNTHESIS_REGISTER_DUPLICATION ON
 set_global_assignment -name PHYSICAL_SYNTHESIS_COMBO_LOGIC_FOR_AREA ON
 set_global_assignment -name PHYSICAL_SYNTHESIS_MAP_LOGIC_TO_MEMORY_FOR_AREA ON
-set_global_assignment -name PHYSICAL_SYNTHESIS_EFFORT FAST
+set_global_assignment -name PHYSICAL_SYNTHESIS_EFFORT EXTRA
 set_global_assignment -name DEVICE EP3C25E144C8
 set_global_assignment -name CYCLONEIII_CONFIGURATION_SCHEME "PASSIVE SERIAL"
 set_global_assignment -name FORCE_CONFIGURATION_VCCIO ON
@@ -359,6 +359,7 @@ set_global_assignment -name VERILOG_FILE ula/ps2_intf.v
 set_global_assignment -name VERILOG_FILE ula/pll.v
 set_global_assignment -name VERILOG_FILE ula/keyboard.v
 set_global_assignment -name VERILOG_FILE ula/scandoubler.v
+set_global_assignment -name VERILOG_FILE ula/osd.v
 set_global_assignment -name SYSTEMVERILOG_FILE ula/video.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ula/ula.sv
 set_global_assignment -name VERILOG_FILE vram.v
@@ -368,7 +369,6 @@ set_global_assignment -name VERILOG_FILE sd_card.v
 set_global_assignment -name VERILOG_FILE divmmc.v
 set_global_assignment -name VERILOG_FILE user_io.v
 set_global_assignment -name VERILOG_FILE tape.v
-set_global_assignment -name VERILOG_FILE osd.v
 set_global_assignment -name VERILOG_FILE data_io.v
 set_global_assignment -name SYSTEMVERILOG_FILE zxspectrum.sv
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

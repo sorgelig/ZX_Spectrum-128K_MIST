@@ -6,7 +6,7 @@ module divmmc (
 
 	// Bus interface
 	input          enabled,
-	input  [15:0] 	A,
+	input  [15:0] 	addr,
 	input          nWR,
 	input          nRD,
 	input          nMREQ,
@@ -42,13 +42,13 @@ wire io_we = !nIORQ &&  nRD && !nWR &&  nM1;
 wire io_rd = !nIORQ && !nRD &&  nWR &&  nM1;
 wire op_rd = !nMREQ && !nRD &&  nWR && !nM1;
 
-assign mapped_addr = {((A[13]) ? {2'b01, sram_page} : 6'b000000), A[12:0]};
+assign mapped_addr = {((addr[13]) ? {2'b01, sram_page} : 6'b000000), addr[12:0]};
 
 reg m1_trigger;
 reg memactive = 1'b0;
 assign active = (memactive || conmem);
-assign active_io = (A[7:0]==8'hEB) && active;
-assign sd_activity = sd_cs;
+assign active_io = (addr[7:0]==8'hEB) && active;
+assign sd_activity = ~sd_cs;
 
 always @(posedge clk) begin
 
@@ -66,30 +66,30 @@ always @(posedge clk) begin
 		spi_tx_strobe <= 1'b0;
 
 		if(active) begin
-			if(io_we && (A[7:0] == 8'hE3)) begin 
+			if(io_we && (addr[7:0] == 8'hE3)) begin 
 				sram_page <= din[3:0];
 				conmem <= din[7];
 				//if(din[6]) mapram <= 1'b1; // can reset only by cycling power (core reload)
 			end
 
-			if(io_we && (A[7:0] == 8'hE7)) sd_cs <= din[0];
+			if(io_we && (addr[7:0] == 8'hE7)) sd_cs <= din[0];
 
 			// SPI read
-			if(io_rd && (A[7:0] == 8'hEB)) spi_rx_strobe <= 1'b1;
+			if(io_rd && (addr[7:0] == 8'hEB)) spi_rx_strobe <= 1'b1;
 
 			// SPI write
-			if(io_we && (A[7:0] == 8'hEB)) spi_tx_strobe <= 1'b1;
+			if(io_we && (addr[7:0] == 8'hEB)) spi_tx_strobe <= 1'b1;
 		end
 
 		if(op_rd) begin
-			if((A==16'h0000) || (A==16'h0008) || (A==16'h0038) || (A==16'h0066) || (A==16'h04C6) || (A==16'h0562)) begin
+			if((addr==16'h0000) || (addr==16'h0008) || (addr==16'h0038) || (addr==16'h0066) || (addr==16'h04C6) || (addr==16'h0562)) begin
 				// activate automapper after this cycle
 				m1_trigger <= 1'b1;
-			end else if (A[15:8]==8'h3D) begin
+			end else if (addr[15:8]==8'h3D) begin
 				// activate automapper immediately
 				memactive <= 1'b1;
 				m1_trigger <= 1'b1;
-			end else if({A[15:3],3'd0} == 16'h1ff8) begin
+			end else if({addr[15:3],3'd0} == 16'h1ff8) begin
 				// deactivate automapper after this cycle
 				m1_trigger <= 1'b0;
 			end

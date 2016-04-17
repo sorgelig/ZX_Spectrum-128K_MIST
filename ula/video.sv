@@ -26,77 +26,84 @@ module video
     input CLK,			        // 14MHz master clock
 	 
 	 // CPU interfacing
-	 output       clk_cpu,	  // CLK to CPU
-    input [15:0] A,
-    input        nMREQ,
-    input        nIORQ,
-    input        nRFSH,
-	 output       nINT,
+	 output        clk_cpu,	  // CLK to CPU
+    input  [15:0] addr,
+    input         nMREQ,
+    input         nIORQ,
+    input         nRFSH,
+	 output        nINT,
 	 
 	 // VRAM interfacing
-    output[12:0] vram_address,
-	 input  [7:0] vram_data,
-	 output [7:0] port_ff,
+    output [12:0] vram_addr,
+	 input   [7:0] vram_dout,
+	 output  [7:0] port_ff,
 	 
 	 // Misc. signals
-    input        mZX,
-    input        m128,
-	 input  [2:0] page_ram_sel,
-    input  [2:0] border,
-	 input        scandoubler_disable,
+    input         mZX,
+    input         m128,
+	 input   [2:0] page_ram,
+    input   [2:0] border,
+	 input         scandoubler_disable,
 
     // OSD IO interface
-    input        SPI_SCK,
-    input        SPI_SS3,
-    input        SPI_DI,
+    input         SPI_SCK,
+    input         SPI_SS3,
+    input         SPI_DI,
 
     // Video outputs
-    output [5:0] VGA_R,
-    output [5:0] VGA_G,
-    output [5:0] VGA_B,
-    output       VGA_VS,
-    output       VGA_HS
+    output  [5:0] VGA_R,
+    output  [5:0] VGA_G,
+    output  [5:0] VGA_B,
+    output        VGA_VS,
+    output        VGA_HS
 );
 
+assign clk_cpu   = ~CPUClk;
+assign vram_addr = vaddr;
+assign nINT      = ~INT;
+assign port_ff   = mZX ? ff_data : 8'hFF;
 
-assign     clk_cpu = ~CPUClk;
-assign     vram_address = addr;
-assign     nINT   = ~INT;
-assign     port_ff= mZX ? ff_data : 8'hFF;
-assign     VGA_HS = scandoubler_disable ? ~(HSync ^ VSync) : ~sd_hs;
-assign     VGA_VS = scandoubler_disable ? 1'b1 : ~sd_vs;
+wire  [5:0] VGA_Rs, VGA_Rd;
+wire  [5:0] VGA_Gs, VGA_Gd;
+wire  [5:0] VGA_Bs, VGA_Bd;
+wire        hsyncd, vsyncd;
 
-wire [5:0] VGA_Rx = scandoubler_disable ? {R, R, I & R, I & R, I & R, I & R} : {sd_r, sd_r[1:0]};
-wire [5:0] VGA_Gx = scandoubler_disable ? {G, G, I & G, I & G, I & G, I & G} : {sd_g, sd_g[1:0]};
-wire [5:0] VGA_Bx = scandoubler_disable ? {B, B, I & B, I & B, I & B, I & B} : {sd_b, sd_b[1:0]};
-wire       OSD_HS = scandoubler_disable ? ~HSync : ~sd_hs;
-wire       OSD_VS = scandoubler_disable ? ~VSync : ~sd_vs;
+osd osd 
+(
+	.*,
+	.clk_pix(clk7),
+	.VGA_Rx({R, R, I & R, I & R, I & R, I & R}),
+	.VGA_Gx({G, G, I & G, I & G, I & G, I & G}),
+	.VGA_Bx({B, B, I & B, I & B, I & B, I & B}),
+	.VGA_R(VGA_Rs),
+	.VGA_G(VGA_Gs),
+	.VGA_B(VGA_Bs),
+	.OSD_HS(HSync),
+	.OSD_VS(VSync)
+);
 
-osd osd( .*, .clk_pix(CLK));
-
-wire sd_hs, sd_vs;
-wire [3:0] sd_r;
-wire [3:0] sd_g;
-wire [3:0] sd_b;
-
-scandoubler scandoubler(
+scandoubler scandoubler 
+(
 	.clk_x2(CLK),
-	.clk(clk7),
 
-	.scanlines(2'b00),
+	.scanlines(0),
 
 	.hs_in(HSync),
 	.vs_in(VSync),
-	.r_in({R,R,I&R,I&R}),
-	.g_in({G,G,I&G,I&G}),
-	.b_in({B,B,I&B,I&B}),
+	.r_in(VGA_Rs),
+	.g_in(VGA_Gs),
+	.b_in(VGA_Bs),
 
-	.hs_out(sd_hs),
-	.vs_out(sd_vs),
-	.r_out(sd_r),
-	.g_out(sd_g),
-	.b_out(sd_b)
+	.hs_out(hsyncd),
+	.vs_out(vsyncd),
+	.r_out(VGA_Rd),
+	.g_out(VGA_Gd),
+	.b_out(VGA_Bd)
 );
+
+assign {VGA_R,  VGA_G,  VGA_B,  VGA_VS,  VGA_HS          } = scandoubler_disable ?
+       {VGA_Rs, VGA_Gs, VGA_Bs, 1'b1,    ~(HSync ^ VSync)} :
+       {VGA_Rd, VGA_Gd, VGA_Bd, ~vsyncd, ~hsyncd         };
 
 // Pixel clock
 reg clk7 = 0;
@@ -123,7 +130,7 @@ reg        VBlank = 1;
 reg        VSync;
 
 reg  [7:0] SRegister;
-reg [12:0] addr;
+reg [12:0] vaddr;
 
 reg  [7:0] AttrOut;
 reg  [4:0] FlashCnt;
@@ -144,8 +151,8 @@ always @(negedge clk7) begin
 	end else if(m128) begin
 		if (hc == 312) HBlank <= 1;
 			else if (hc == 424) HBlank <= 0;
-		if (hc == 344) HSync <= 1;         //ULA 6C
-			else if (hc == 376) HSync <= 0; //ULA 6C
+		if (hc == 340) HSync <= 1;         //ULA 6C
+			else if (hc == 372) HSync <= 0; //ULA 6C
 	end else begin
 		if (hc == 312) HBlank <= 1;
 			else if (hc == 416) HBlank <= 0;
@@ -179,10 +186,10 @@ always @(negedge clk7) begin
 	
 	if(!Border) begin
 		case(hc[3:0])
-			  8,12: addr <= {vc[7:6],vc[2:0],vc[5:3],hc[7:4], hc[2]};
-			  9,13: begin bits <= vram_data; ff_data <= vram_data; end
-			 10,14: addr <= {3'b110,vc[7:3],hc[7:4],hc[2]};
-			 11,15: begin attr <= vram_data; ff_data <= vram_data; end
+			  8,12: vaddr <= {vc[7:6],vc[2:0],vc[5:3],hc[7:4], hc[2]};
+			  9,13: begin bits <= vram_dout; ff_data <= vram_dout; end
+			 10,14: vaddr <= {3'b110,vc[7:3],hc[7:4],hc[2]};
+			 11,15: begin attr <= vram_dout; ff_data <= vram_dout; end
 		endcase
 	end
 
@@ -202,10 +209,10 @@ always @(posedge CPUClk) nIORQ_T2 <= nIORQ;
 reg  CPUClk;
 reg  ioreqtw3;
 reg  mreqt23;
-wire ioreq_n  = A[0] | nIORQ_T2 | nIORQ;
+wire ioreq_n  = addr[0] | nIORQ_T2 | nIORQ;
 
 wire ulaContend = (hc[2] | hc[3]) & ~Border & CPUClk & ioreqtw3;
-wire memContend = nRFSH & ioreq_n & mreqt23 & ((A[15:14] == 2'b01) | (m128 & (A[15:14] == 2'b11) & page_ram_sel[0]));
+wire memContend = nRFSH & ioreq_n & mreqt23 & ((addr[15:14] == 2'b01) | (m128 & (addr[15:14] == 2'b11) & page_ram[0]));
 wire ioContend  = ~ioreq_n;
 
 always @(posedge clk7) CPUClk <= ~hc[0] | (mZX & ulaContend & (memContend | ioContend));

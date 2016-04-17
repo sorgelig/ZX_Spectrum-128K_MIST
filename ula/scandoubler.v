@@ -20,26 +20,28 @@
 
 module scandoubler (
   // system interface
-  input 	          clk_x2,     // 31.875 MHz
-  input            clk,  // from shifter
+  input 	          clk_x2,
 
   // scanlines (00-none 01-25% 10-50% 11-75%)
-  input [1:0] 	    scanlines,
+  input      [1:0] scanlines,
 		    
   // shifter video interface
   input 	          hs_in,
   input 	          vs_in,
-  input [3:0] 	    r_in,
-  input [3:0] 	    g_in,
-  input [3:0] 	    b_in,
+  input      [5:0] r_in,
+  input      [5:0] g_in,
+  input      [5:0] b_in,
 
   // output interface
   output reg 	    hs_out,
   output reg 	    vs_out,
-  output reg [3:0] r_out,
-  output reg [3:0] g_out,
-  output reg [3:0] b_out
+  output reg [5:0] r_out,
+  output reg [5:0] g_out,
+  output reg [5:0] b_out
 );
+
+reg clk;
+always @(posedge clk_x2) clk <= !clk;
 
 // --------------------- create output signals -----------------
 // latch everything once more to make it glitch free and apply scanline effect
@@ -58,41 +60,41 @@ always @(posedge clk_x2) begin
 
    // if no scanlines or not a scanline
    if(!scanline || scanlines == 2'b00) begin
-      r_out <= sd_out[11:8];
-      g_out <= sd_out[7:4];
-      b_out <= sd_out[3:0];
+      r_out <= sd_out[17:12];
+      g_out <= sd_out[11:6];
+      b_out <= sd_out[5:0];
    end else begin
       case(scanlines)
 	2'b01: begin // reduce 25% = 1/2 + 1/4
-	   r_out <= { 1'b0, sd_out[11:9] } + { 2'b00, sd_out[11:10] };
-	   g_out <= { 1'b0, sd_out[7:5] }  + { 2'b00, sd_out[7:6]   };
-	   b_out <= { 1'b0, sd_out[3:1] }  + { 2'b00, sd_out[3:2]   };
+	   r_out <= { 1'b0, sd_out[17:13] } + { 2'b00, sd_out[17:14] };
+	   g_out <= { 1'b0, sd_out[11:7] }  + { 2'b00, sd_out[11:8]   };
+	   b_out <= { 1'b0, sd_out[5:1] }   + { 2'b00, sd_out[5:2]   };
 	end
 	
 	2'b10: begin // reduce 50% = 1/2
-	   r_out <= { 1'b0, sd_out[11:9] };
-	   g_out <= { 1'b0, sd_out[7:5] };
-	   b_out <= { 1'b0, sd_out[3:1] };
+	   r_out <= { 1'b0, sd_out[17:13] };
+	   g_out <= { 1'b0, sd_out[11:7] };
+	   b_out <= { 1'b0, sd_out[5:1] };
 	end
 	
 	2'b11: begin // reduce 75% = 1/4
-	   r_out <= { 2'b00, sd_out[11:10] };
-	   g_out <= { 2'b00, sd_out[7:6] };
-	   b_out <= { 2'b00, sd_out[3:2] };
+	   r_out <= { 2'b00, sd_out[17:14] };
+	   g_out <= { 2'b00, sd_out[11:8] };
+	   b_out <= { 2'b00, sd_out[5:2] };
 	end
       endcase
    end // else: !if(!scanline || scanlines == 2'b00)
 end
    
 // scan doubler output register
-reg [11:0]  sd_out;
+reg [17:0]  sd_out;
    
 // ==================================================================
 // ======================== the line buffers ========================
 // ==================================================================
 
 // 2 lines of 1024 pixels 3*4 bit RGB
-reg [11:0] sd_buffer [2047:0];
+reg [17:0] sd_buffer [2047:0];
 
 // use alternating sd_buffers when storing/reading data   
 reg vsD;

@@ -22,162 +22,142 @@
 module ula
 (
     //-------- Clocks and reset -----------------
-    input  wire [1:0]  CLOCK_27,     // Input clock 27 MHz
-    input  wire        turbo,        // Turbo speed (3.5 MHz x 2 = 7.0 MHz)
-    input  wire        mZX,
-    input  wire        m128,
-    input  wire        nRESET,       // KEY0 is reset
-    output wire        locked,       // PLL is locked signal
+    input         CLOCK_27,     // Input clock 27 MHz
 
-    //-------- CPU control ----------------------
-    output wire        clk_cpu,      // Generates CPU clock of 3.5 MHz
-    output wire        clk_ram,      // SDRAM clock 112MHz
-    output wire        clk_sys,      // System master clock (28 MHz)
-    output wire        clk_ula,		 // System master clock (14 MHz)
-    output wire        nINT,         // Generates a vertical retrace interrupt
-    output wire        SDRAM_CLK,    // SDRAM clock 112MHz phase shifted for chip
+    output        clk_ram,      // SDRAM clock
+    output        SDRAM_CLK,    // SDRAM clock phase shifted for chip
+    input         turbo,
+    output        clk_cpu,      // CPU clock
+    output        clk_sys,      // System master clock (28 MHz)
+    output        clk_ula,		  // System master clock (14 MHz)
+
+    input         nRESET,
+    output        locked,
+    output        warm_reset,
+    output        cold_reset,
+    output        test_reset,
 
     //-------- Address and data buses -----------
-    input  wire [15:0] A,            // Input address bus
-    input  wire [7:0]  din,           // Input data bus
-    output wire [7:0]  ula_data,     // Output data
-    input  wire        nIORQ,
-    input  wire        nMREQ,
-    input  wire        nRFSH,
-    input  wire        io_we,        // Write enable to data register through IO
-    input  wire        io_rd,               
-    output wire        F11,
-    output wire        F1,
-	 output wire        warm_reset,
-	 output wire        cold_reset,
-	 input  wire [2:0]  page_ram_sel,
+    input  [15:0] addr,         // Input address bus
+    input   [7:0] din,          // Input data bus
+    output  [7:0] dout,         // Output data
+    input         nIORQ,
+    input         nMREQ,
+    input         nM1,
+    input         nRD,
+    input         nWR,
+    input         nRFSH,
+    input   [2:0] page_ram,
+    output        nINT,         // Generates a vertical retrace interrupt
 
-    //-------- PS/2 Keyboard --------------------
-    input  wire        PS2_CLK,
-    input  wire        PS2_DAT,
+    //------- Keyboard ------------
+    input         PS2_CLK,
+    input         PS2_DAT,
+    output        F11,
+    output        F1,
 
     //-------- Audio --------------
-    output wire        AUDIO_L,
-    output wire        AUDIO_R,
-    input  wire        AUDIO_IN,
+    output        AUDIO_L,
+    output        AUDIO_R,
+    input         AUDIO_IN,
 
-    //-------- VGA connector --------------------
-    input  wire        SPI_SCK,
-    input  wire        SPI_SS3,
-    input  wire        SPI_DI,
+    //-------- Video --------------
+    input         mZX,
+    input         m128,
+    input         SPI_SCK,
+    input         SPI_SS3,
+    input         SPI_DI,
 
-    output wire [5:0]  VGA_R,
-    output wire [5:0]  VGA_G,
-    output wire [5:0]  VGA_B,
-    output reg         VGA_HS,
-    output reg         VGA_VS,
-	 
-    output wire [12:0] vram_address, // ULA video block requests a byte from the video RAM
-    input  wire [7:0]  vram_data,    // ULA video block reads a byte from the video RAM
-	 input  wire        scandoubler_disable
+    input         scandoubler_disable,
+    output  [5:0] VGA_R,
+    output  [5:0] VGA_G,
+    output  [5:0] VGA_B,
+    output        VGA_HS,
+    output        VGA_VS,
+
+    output [12:0] vram_addr,
+    input   [7:0] vram_dout
 );
 `default_nettype none
 
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Instantiate PLL and clocks block
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-wire f0,f1;
 
-pll pll_( .inclk0(CLOCK_27[0]), .c0(f0), .c1(f1), .locked(locked));
+////////////////////   CLOCKS   ///////////////////
+wire clk_56m;
+pll pll(.inclk0(CLOCK_27), .c0(clk_ram), .c1(SDRAM_CLK), .c2(clk_56m), .locked(locked));
 
-reg [5:0] counter0 = 6'd0;
-wire   clk_psg = counter0[5]; //1.75MHz
-assign clk_ula = counter0[2]; //14MHz
-assign clk_sys = counter0[1]; //28MHz
-always @(posedge f0) counter0 <= counter0 + 6'd1;
+reg   [4:0] counter0 = 0;
+wire        clk_psg = counter0[4];  //1.75MHz
+assign      clk_ula = counter0[1];  //14MHz
+assign      clk_sys = counter0[0];  //28MHz
+assign      dout = data;
+reg   [7:0] data;
+reg         clk_cpu_turbo;
+reg   [3:0] counterT = 0;
 
-reg clk_cpu_turbo;
-reg [3:0] counterT = 4'd0;
-always @(posedge f0) begin
-	counterT <= counterT + 4'd1;
-	if(counterT == 4'd13) begin
-		counterT <= 4'd0;
-		clk_cpu_turbo <= !clk_cpu_turbo;
+always @(posedge clk_56m) begin
+	counter0 <= counter0 + 1'd1;
+	counterT <= counterT + 1'd1;
+	if(counterT == 6) begin
+		counterT <= 0;
+		clk_cpu_turbo <= ~clk_cpu_turbo;
 	end
 end
 
-reg [4:0] counter1 = 5'd0;
-always @(posedge f1) counter1 <= counter1 + 4'd1;
-
-//`define SLOWRAM
-
-`ifdef SLOWRAM
-	assign clk_ram = counter0[0];    //56MHz
-	assign SDRAM_CLK = counter1[0];  //56MHz
-`else
-	assign clk_ram = f0;             //112MHz
-	assign SDRAM_CLK = f1;           //112MHz
-`endif
-
 wire clk_cpu_std;
-clk_switch switch(
+clk_switch switch
+(
 	.clk_a(clk_cpu_std),
 	.clk_b(clk_cpu_turbo),
 	.select(~turbo),
 	.out_clk(clk_cpu)
 );
 
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// The ULA output data
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-reg [2:0] border;
 
-always @(posedge clk_sys)
-begin
+////////////////////  ULA PORTS  ///////////////////
+wire        io_we  = ~nIORQ & ~nWR & nM1;
+reg   [2:0] border;
+
+always @(posedge clk_sys) begin
 	if(!nRESET) begin
-        border  <=  3'b000;
-        ear_out <= 1'b0; 
-        mic_out <= 1'b0;
-    end else if (!A[0] && io_we) begin
+        border  <= 0;
+        ear_out <= 0; 
+        mic_out <= 0;
+    end else if(~addr[0] & io_we) begin
         border  <= din[2:0];
         ear_out <= din[4]; 
         mic_out <= din[3];
     end
 end
 
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Instantiate audio interface
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-reg ear_out;
-reg mic_out;
+always_comb begin
+	casex({addr[0], psg_enable})
+		'b0X: data = {1'b1, AUDIO_IN, 1'b1, key_data[4:0]};
+		'b11: data = (addr[14] ? sound_data : 8'hFF);
+		'b10: data = port_ff;
+	endcase
+end
 
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Instantiate AY8910
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-wire [7:0] sound_data;
-wire [7:0] psg_ch_a;
-wire [7:0] psg_ch_b;
-wire [7:0] psg_ch_c;
-wire psg_enable = A[0] && A[15] && !A[1];
 
-wire psg_dir   = psg_delay && io_we && psg_enable;
-reg  psg_delay = 0;
+////////////////////   AUDIO   ///////////////////
+reg         ear_out;
+reg         mic_out;
+
+wire  [7:0] sound_data;
+wire  [7:0] psg_ch_a;
+wire  [7:0] psg_ch_b;
+wire  [7:0] psg_ch_c;
+wire        psg_enable = addr[0] & addr[15] & ~addr[1];
+wire        psg_dir = psg_delay & io_we & psg_enable;
+reg         psg_delay;
+
 always @(negedge clk_cpu) psg_delay <= io_we && psg_enable;
-/*
-ay8910 ay8910(
+
+ym2149 ym2149
+(
 	.CLK(clk_psg),
-	.EN(1),
-	.RESET(!nRESET),
+	.RESET(~nRESET),
 	.BDIR(psg_dir),
-	.CS(1),
-	.BC(A[14]),
-	.DI(din),
-	.DO(sound_data),
-	.CHANNEL_A(psg_ch_a),
-	.CHANNEL_B(psg_ch_b),
-	.CHANNEL_C(psg_ch_c)
-);
-*/
-ym2149 ym2149(
-	.CLK(clk_psg),
-	.RESET(!nRESET),
-	.BDIR(psg_dir),
-	.BC(A[14]),
+	.BC(addr[14]),
 	.DI(din),
 	.DO(sound_data),
 	.CHANNEL_A(psg_ch_a),
@@ -187,40 +167,36 @@ ym2149 ym2149(
 	.MODE(0)
 );
 
-sigma_delta_dac #(.MSBI(10)) dac_l (
+sigma_delta_dac #(.MSBI(10)) dac_l
+(
 	.CLK(clk_ula),
-	.RESET(!nRESET),
+	.RESET(~nRESET),
 	.DACin({1'b0, psg_ch_a, 1'b0} + {2'b00, psg_ch_b} + {2'b00, ear_out, mic_out, AUDIO_IN, 5'b00000}),
 	.DACout(AUDIO_L)
 );
 
-sigma_delta_dac #(.MSBI(10)) dac_r(
+sigma_delta_dac #(.MSBI(10)) dac_r
+(
 	.CLK(clk_ula),
-	.RESET(!nRESET),
+	.RESET(~nRESET),
 	.DACin({1'b0, psg_ch_c, 1'b0} + {2'b00, psg_ch_b} + {2'b00, ear_out, mic_out, AUDIO_IN, 5'b00000}),
 	.DACout(AUDIO_R)
 );
 
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Instantiate ULA's video subsystem
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-wire [7:0] port_ff;
+
+////////////////////   VIDEO   ///////////////////
+wire  [7:0] port_ff;
 video video(.*, .CLK(clk_ula), .clk_cpu(clk_cpu_std));
 
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Instantiate keyboard support
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-wire [4:0] KEYB;
-keyboard kbd( .*, .CLK(clk_ula));
 
-always_comb begin
-	ula_data =       (A[0]==0) ? { 1'b1, AUDIO_IN, 1'b1, KEYB[4:0] } :
-                 (psg_enable) ? (A[14] ? sound_data : 8'hFF) :
-                                port_ff;
-end
+//////////////////   KEYBOARD   //////////////////
+wire  [4:0] key_data;
+keyboard kbd( .*, .CLK(clk_ula));
 
 endmodule
 
+
+//////////////   CLOCK SWITCHER   ////////////////
 module clk_switch 
 (
    input  clk_a,
@@ -241,11 +217,11 @@ always @ (posedge clk_b) begin
 	q4 <= or_two;
 end
 
-wire or_one   = (!q1) | (!select);
-wire or_two   = (!q2) | (select);
-wire or_three = (q3)  | (clk_a);
-wire or_four  = (q4)  | (clk_b);
+wire or_one    = (~q1) | (~select);
+wire or_two    = (~q2) | (select);
+wire or_three  = (q3)  | (clk_a);
+wire or_four   = (q4)  | (clk_b);
 
-assign out_clk  = or_three & or_four;
+assign out_clk = or_three & or_four;
 
 endmodule

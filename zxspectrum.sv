@@ -22,170 +22,138 @@
 //============================================================================
 module zxspectrum
 (
-   input  wire [1:0]  CLOCK_27,            // Input clock 27 MHz
+   input         CLOCK_27,   // Input clock 27 MHz
 
-   output wire [5:0]  VGA_R,
-   output wire [5:0]  VGA_G,
-   output wire [5:0]  VGA_B,
-   output wire        VGA_HS,
-   output wire        VGA_VS,
-	 
-	output wire        LED,
+   output  [5:0] VGA_R,
+   output  [5:0] VGA_G,
+   output  [5:0] VGA_B,
+   output        VGA_HS,
+   output        VGA_VS,
 
-	output wire        AUDIO_L,
-   output wire        AUDIO_R,
+   output        LED,
 
-   input  wire        SPI_SCK,
-   output wire        SPI_DO,
-   input  wire        SPI_DI,
-   input  wire        SPI_SS2,
-   input  wire        SPI_SS3,
-	input  wire        SPI_SS4,
-   input  wire        CONF_DATA0,
+   output        AUDIO_L,
+   output        AUDIO_R,
 
-	output wire [12:0] SDRAM_A,
-	inout  wire [15:0] SDRAM_DQ,
-	output wire        SDRAM_DQML,
-	output wire        SDRAM_DQMH,
-	output wire        SDRAM_nWE,
-	output wire        SDRAM_nCAS,
-	output wire        SDRAM_nRAS,
-	output wire        SDRAM_nCS,
-	output wire [1:0]  SDRAM_BA,
-	output wire        SDRAM_CLK,
-	output wire        SDRAM_CKE
+   input         SPI_SCK,
+   output        SPI_DO,
+   input         SPI_DI,
+   input         SPI_SS2,
+   input         SPI_SS3,
+   input         SPI_SS4,
+   input         CONF_DATA0,
+
+   output [12:0] SDRAM_A,
+   inout  [15:0] SDRAM_DQ,
+   output        SDRAM_DQML,
+   output        SDRAM_DQMH,
+   output        SDRAM_nWE,
+   output        SDRAM_nCAS,
+   output        SDRAM_nRAS,
+   output        SDRAM_nCS,
+   output  [1:0] SDRAM_BA,
+   output        SDRAM_CLK,
+   output        SDRAM_CKE
 );
 `default_nettype none
 
-////////////////////////////////////////////////////////////////////////
+assign      LED = ~(divmmc_sd_activity | ioctl_erasing | ioctl_download);
 
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Internal buses and address map selection logic
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-always_comb
-begin
-    case ({nM1,nMREQ,nIORQ,nRD,nWR})
-        // ----------------------- Memory read -------------------------------
-        5'b10101,
-        5'b00101: DI = sram_data;
 
-        // ------------------------- IO read ---------------------------------
-        5'b11001: DI = divmmc_active_io ? divmmc_data :
-                            // page_acc ? page_data   :
-                        (A[7:0]==8'h1F) ? {2'b00, joystick_0[5:0] | joystick_1[5:0]} :
-                                          ula_data;
+//////////////////   MIST ARM I/O   ///////////////////
+wire        PS2_CLK;
+wire        PS2_DAT;
 
-        default:  DI = 8'hFF;
-    endcase
-end
+wire  [7:0] joystick_0;
+wire  [7:0] joystick_1;
+wire  [1:0] buttons;
+wire  [1:0] switches;
+wire        scandoubler_disable;
+wire  [7:0] status;
 
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Instantiate Memory
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+wire [31:0] sd_lba;
+wire        sd_rd;
+wire        sd_wr;
+wire        sd_ack;
+wire        sd_conf;
+wire        sd_sdhc;
+wire  [7:0] sd_dout;
+wire        sd_dout_strobe;
+wire  [7:0] sd_din;
+wire        sd_din_strobe;
 
-wire vram_we = ((A[15:13] == 3'b010) || ((A[15:13] == 3'b110) && page_ram_sel[2] && page_ram_sel[0])) && !nMREQ && nRD && !nWR;
-vram vram(
-    .clock(clk_sys),
+reg  [10:0] clk14k_div;
+wire        clk_ps2 = clk14k_div[10];
+always @(posedge clk_sys) clk14k_div <= clk14k_div + 1'b1;
 
-    .wraddress({A[15] & page_ram_sel[1], A[12:0]}),
-    .data(DO),
-    .wren(vram_we),
+user_io #(.STRLEN(120)) user_io
+(
+	.*,
+	.conf_str
+	(
+        "SPECTRUM;CSW;O5,Autoload ESXDOS,No,Yes;O2,CPU Speed,3.5MHz,4MHz;O3,Video Type,ZX,Pent;O6,Video Version,48k,128k;T4,Reset"
+	),
 
-    .rdaddress({page_shadow_scr, vram_address}),
-    .q(vram_data)
+	// ps2 keyboard emulation
+	.ps2_clk(clk_ps2),				// 12-16khz provided by core
+	.ps2_kbd_clk(PS2_CLK),
+	.ps2_kbd_data(PS2_DAT),
+
+	// unused
+	.joystick_analog_0(),
+	.joystick_analog_1(),
+	.ps2_mouse_clk(),
+	.ps2_mouse_data(),
+	.serial_data(),
+	.serial_strobe()
 );
 
-wire [7:0] sram_data;
-wire sram_we = (ext_ram_write || (A[15:14] > 2'b00)) && !nMREQ && nRD && !nWR;
-wire sram_rd = !nMREQ && !nRD && nWR;
-wire [24:0] sram_addr = (A[15:14] == 2'b01) ? {11'd5, A[13:0]} :
-                        (A[15:14] == 2'b10) ? {11'd2, A[13:0]} :
-                        (A[15:14] == 2'b11) ? {8'd0, page_ram_sel, A[13:0]} :
-                                    ext_ram ? divmmc_addr :
-                                              {10'b0000101111, page_rom_sel, A[13:0]};
+wire        ioctl_wr;
+wire [24:0] ioctl_addr;
+wire  [7:0] ioctl_dout;
+wire        ioctl_download;
+wire        ioctl_erasing;
+wire  [4:0] ioctl_index;
+reg         force_erase = 0;
 
-wire ioctl_req = (!nRESET || !nBUSACK) && !nBUSRQ;
+data_io data_io
+(
+	.sck(SPI_SCK),
+	.ss(SPI_SS2),
+	.sdi(SPI_DI),
 
-sram sram( .*,
-    .init(!locked),
-	 .clk_sdram(clk_ram),
-	 .dout(sram_data),
-	 .din (ioctl_req ? ioctl_data      : 
-			  (!nRFSH) ? 8'b0            :
-			             DO              ),
+	.force_erase(force_erase),
+	.downloading(ioctl_download),
+	.erasing(ioctl_erasing),
+	.index(ioctl_index),
 
-	 .addr(ioctl_req ? ioctl_addr      : 
-			  (!nRFSH) ? tape_addr_save  :
-	                   sram_addr       ),
-
-	 .we  (ioctl_req ? ioctl_wr        : 
-			  (!nRFSH) ? 1'b0            :
-                      sram_we         ),
-							 
-	 .rd  (ioctl_req ? 1'b0            :
-			  (!nRFSH) ? tape_io         :
-                      sram_rd         )
+	.clk(clk_sys),
+	.wr(ioctl_wr),
+	.addr(ioctl_addr),
+	.dout(ioctl_dout)
 );
 
-reg  [7:0] page_data        = 8'd0;
-wire       page_reg_disable = page_data[5];
-wire       page_rom_sel     = page_data[4];
-wire       page_shadow_scr  = page_data[3];
-wire [2:0] page_ram_sel     = page_data[2:0];
 
-wire page_acc   = !A[15] && !A[1];
-wire page_write = io_we && page_acc && !page_reg_disable;
+///////////////////   CPU   ///////////////////
+wire [15:0] addr;
+wire  [7:0] cpu_din;
+wire  [7:0] cpu_dout;
+wire        nM1;
+wire        nMREQ;
+wire        nIORQ;
+wire        nRD;
+wire        nWR;
+wire        nRFSH;
+wire        nHALT;
+wire        nBUSACK;
+wire        nINT;
+wire        nWAIT	 = 1;
+wire        nNMI   = esxNMI;
+wire        nBUSRQ = ~(ioctl_download | ioctl_erasing);
+wire        nRESET = locked & ~buttons[1] & ~status[0] & ~status[4] & esxRESET & ~cold_reset & ~warm_reset & ~test_reset;
 
-always @ (negedge clk_cpu) begin
-	if (cold_reset) page_data <= 8'd0;
-		else if (page_write) page_data <= DO;
-end
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Instantiate ULA
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-wire        locked;
-wire        clk_cpu;       // CPU clock of 3.5 MHz
-wire        clk_ram;			// 112MHz clock for RAM 
-wire        clk_sys;       // 28MHz for system synchronization 
-wire        clk_ula;       // 14MHz
-wire [12:0] vram_address;
-wire [7:0]  vram_data;
-wire [7:0]  ula_data;
-wire        F11;
-wire        F1;
-wire        warm_reset;
-wire        cold_reset;
-reg         AUDIO_IN;
-
-ula ula( .*, .din(DO), .turbo(status[2]), .mZX(~status[3]), .m128(status[6]));
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Instantiate CPU
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-wire [15:0] A;  // Global address bus
-wire  [7:0] DI;  // CPU data input bus
-wire  [7:0] DO;  // CPU data output bus
-
-wire nM1;
-wire nMREQ;
-wire nIORQ;
-wire nRD;
-wire nWR;
-wire nRFSH;
-wire nHALT;
-wire nBUSACK;
-wire nINT;
-
-wire nWAIT	= 1'b1;
-wire nNMI   = esxNMI;
-wire nBUSRQ = !ioctl_download;
-wire nRESET = locked && !buttons[1] && !status[0] && !status[4] && esxRESET && !cold_reset && !warm_reset;
-
-wire io_we = !nIORQ && nRD && !nWR && nM1;
-wire io_rd = !nIORQ && !nRD && nWR && nM1;
-
-T80a cpu (
+T80a cpu
+(
 	.RESET_n(nRESET),
 	.CLK_n(clk_cpu),
 	.WAIT_n(nWAIT),
@@ -200,217 +168,201 @@ T80a cpu (
 	.RFSH_n(nRFSH),
 	.HALT_n(nHALT),
 	.BUSAK_n(nBUSACK),
-	.A(A),
-	.DO(DO),
-	.DI(DI),
+	.A(addr),
+	.DO(cpu_dout),
+	.DI(cpu_din),
 	.RestorePC_n(1),
 	.RestorePC(0),
 	.RestoreINT(0)
 );
 
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Instantiate MIST ARM I/O
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-wire        PS2_CLK;
-wire        PS2_DAT;
-
-wire [7:0]  joystick_0;
-wire [7:0]  joystick_1;
-wire [1:0]  buttons;
-wire [1:0]  switches;
-wire		   scandoubler_disable;
-wire [7:0]  status;
-
-wire [31:0] sd_lba;
-wire        sd_rd;
-wire        sd_wr;
-wire        sd_ack;
-wire        sd_conf;
-wire        sd_sdhc;
-wire [7:0]  sd_dout;
-wire        sd_dout_strobe;
-wire [7:0]  sd_din;
-wire        sd_din_strobe;
-
-reg [10:0]  clk14k_div;
-reg         clk_ps2;
-
-always @(posedge clk_sys)
-begin
-	clk14k_div <= clk14k_div + 11'b1;
-	clk_ps2 <= clk14k_div[10];
+always_comb begin
+	casex({nMREQ, ~nM1 | nIORQ | nRD, divmmc_sel, addr[7:0]==8'h1F})
+		'b0XXX: cpu_din = ram_dout;
+		'b101X: cpu_din = divmmc_dout;
+		'b1001: cpu_din = {2'b00, joystick_0[5:0] | joystick_1[5:0]};
+		'b1000: cpu_din = ula_dout;
+		'b11XX: cpu_din = 8'hFF;
+	endcase
 end
 
-user_io #(.STRLEN(141)) user_io (
-	.*,
-	.conf_str("SPECTRUM;CSW;T1,ESXDOS Menu (F11);O5,Autoload ESXDOS,No,Yes;O2,CPU Speed,3.5MHz,4MHz;O3,Video Type,ZX,Pent;O6,Video Version,48k,128k;T4,Reset"),
 
-	// ps2 keyboard emulation
-	.ps2_clk(clk_ps2),				// 12-16khz provided by core
-	.ps2_kbd_clk(PS2_CLK),
-	.ps2_kbd_data(PS2_DAT),
-	
-	// unused
-	.joystick_analog_0(),
-	.joystick_analog_1(),
-	.ps2_mouse_clk(),
-	.ps2_mouse_data(),
-	.serial_data(),
-	.serial_strobe()
+//////////////////   MEMORY   //////////////////
+wire vram_we = ((addr[15:13] == 3'b010) | ((addr[15:13] == 3'b110) & page_ram[2] & page_ram[0])) & ~nMREQ & ~nWR;
+vram vram
+(
+    .clock(clk_sys),
+
+    .wraddress({addr[15] & page_ram[1], addr[12:0]}),
+    .data(cpu_dout),
+    .wren(vram_we),
+
+    .rdaddress({page_scr, vram_addr}),
+    .q(vram_dout)
 );
 
-//////////////////////////////////////////////////////////////////////////////////
+wire        dma = (~nRESET | ~nBUSACK) & ~nBUSRQ;
+reg  [24:0] ram_addr;
+reg   [7:0] ram_din;
+reg         ram_we;
+reg         ram_rd;
+always_comb begin
+	casex({dma, tape_req, ext_ram, addr[15:14]})
+		'b1XX_XX: ram_addr = ioctl_addr;
+		'b01X_XX: ram_addr = tape_addr;
+		'b001_00: ram_addr = divmmc_addr;
+		'b000_00: ram_addr = {5'h17, page_rom, addr[13:0]};
+		'b00X_01: ram_addr = {       3'd5,     addr[13:0]};
+		'b00X_10: ram_addr = {       3'd2,     addr[13:0]};
+		'b00X_11: ram_addr = {       page_ram, addr[13:0]};
+	endcase
 
-reg  [1:0] esxdos_downloaded = 1'b00;
-wire esxdos_ready = esxdos_downloaded[!status[5]];
-wire ext_ram = divmmc_active && esxdos_ready;
+	casex({dma, tape_req})
+		'b1X: ram_din = ioctl_dout;
+		'b01: ram_din = 0;
+		'b00: ram_din = cpu_dout;
+	endcase
 
-// write to upper 8k unless
-wire ext_ram_write = ext_ram && (A[15:13] == 3'b001);
+	casex({dma, tape_req})
+		'b1X: ram_we = ioctl_wr;
+		'b01: ram_we = 0;
+		'b00: ram_we = (ext_ram_write | addr[15] | addr[14]) & ~nMREQ & ~nWR;
+	endcase
 
-// DIVMMC mapping
+	casex({dma, tape_req})
+		'b1X: ram_rd = 0;
+		'b01: ram_rd = tape_rd;
+		'b00: ram_rd = ~nMREQ & ~nRD;
+	endcase
+end
+
+wire  [7:0] ram_dout;
+sram ram
+(
+	.*,
+	.init(~locked),
+	.clk_sdram(clk_ram),
+	.dout(ram_dout),
+	.din (ram_din),
+	.addr(ram_addr),
+	.we(ram_we),
+	.rd(ram_rd)
+);
+
+reg         test_rom;
+reg   [7:0] page_reg     = 0;
+wire        page_disable = page_reg[5];
+wire  [1:0] page_rom     = {~test_rom, page_reg[4] & ~test_rom};
+wire        page_scr     = page_reg[3];
+wire  [2:0] page_ram     = page_reg[2:0];
+wire        page_write   = ~nIORQ & ~nWR & nM1 & ~addr[15] & ~addr[1] & ~page_disable;
+
+always @ (negedge clk_cpu) begin
+	if(~nRESET) begin
+		page_reg <= 0;
+		test_rom <= test_reset;
+	end else if(page_write) begin
+		page_reg <= cpu_dout;
+	end
+end
+
+
+///////////////////   ULA   ///////////////////
+wire        locked;
+wire        clk_cpu;       // CPU clock of 3.5 MHz
+wire        clk_ram;       // 84MHz clock for RAM 
+wire        clk_sys;       // 28MHz for system synchronization 
+wire        clk_ula;       // 14MHz
+wire [12:0] vram_addr;
+wire  [7:0] vram_dout;
+wire  [7:0] ula_dout;
+wire        F11;
+wire        F1;
+wire        warm_reset;
+wire        cold_reset;
+wire        test_reset;
+reg         AUDIO_IN;
+
+ula ula( .*, .din(cpu_dout), .dout(ula_dout), .turbo(status[2]), .mZX(~status[3]), .m128(status[6]));
+
+
+//////////////////   DIVMMC   //////////////////
+reg   [1:0] esxdos_downloaded = 1'b00;
+wire        esxdos_ready = esxdos_downloaded[~status[5]];
+wire        ext_ram = divmmc_active && esxdos_ready;
+wire        ext_ram_write = ext_ram && (addr[15:13] == 3'b001);
 wire [24:0] divmmc_addr = {6'b000011, divmmc_mapaddr};
 
-wire esxRESET = !(esxRQ && !esxdos_ready && esxdos_downloaded[0]) && (initRESET == 0);
-wire esxNMI   = !(esxRQ && esxdos_ready);
+wire        esxRESET = ~(esxRQ & ~esxdos_ready & esxdos_downloaded[0]) & !initRESET;
+wire        esxNMI   = ~(esxRQ &  esxdos_ready);
+reg         esxRQ    = 0;
 
-reg esxRQb = 0;
-wire esxRQ = esxRQb || status[1];
-
-reg sRST1 = 0, sRST2 = 0;
 always @(posedge clk_ps2) begin
-	sRST1 <= F11 || joystick_0[7] || joystick_1[7];
+	reg sRST1 = 0, sRST2 = 0;
+
+	sRST1 <= F11 | joystick_0[7] | joystick_1[7];
 	sRST2 <= sRST1;
 
-	if(sRST2 && !sRST1) esxRQb <= 1;
-	else esxRQb <= 0;
+	if(sRST2 && ~sRST1) esxRQ <= 1;
+		else esxRQ <= 0;
 end
 
 // wait for ESXDOS ROM loading 
 integer initRESET = 32000000;
-always @(posedge clk_sys) begin 
-	if(initRESET!=0) begin 
-		initRESET <= initRESET - 1;
-	end
-end
+always @(posedge clk_sys) if(initRESET) initRESET <= initRESET - 1;
 
 always @(negedge esxRQ, posedge cold_reset) begin
 	if(cold_reset) esxdos_downloaded[1] <= 0;
 		else esxdos_downloaded[1] <= esxdos_downloaded[0];
 end
 
-assign LED = !(!divmmc_sd_activity || ioctl_download);
-
 wire        divmmc_sd_activity;
 wire        divmmc_active;
-wire        divmmc_active_io;
+wire        divmmc_sel;
 wire [18:0] divmmc_mapaddr;
-wire  [7:0] divmmc_data;
+wire  [7:0] divmmc_dout;
 
-divmmc divmmc(
+divmmc divmmc
+(
 	.*,
 	.clk(clk_sys),
 
 	.enabled(esxdos_ready),
-	.din(DO),
-	.dout(divmmc_data),
+	.din(cpu_dout),
+	.dout(divmmc_dout),
 
 	.active(divmmc_active),
-	.active_io(divmmc_active_io),
+	.active_io(divmmc_sel),
 	.mapped_addr(divmmc_mapaddr),
 
 	.sd_activity(divmmc_sd_activity)
 );
 
-always @ (posedge ioctl_wr) begin
-	if(ioctl_addr == 25'h181fff) esxdos_downloaded[0] <= 1'b1;
-end
+always @(posedge ioctl_wr) if(ioctl_addr == 25'h181fff) esxdos_downloaded[0] <= 1;
+always @(posedge clk_sys) force_erase <= cold_reset;
 
-always @ (posedge clk_sys) begin
-	force_erase <= cold_reset;
-end
 
-////////////////////////////////////////////////////////////////////////////////////
-
-wire ioctl_wr;
-wire [24:0] ioctl_addr;
-wire [7:0]  ioctl_data;
-reg  force_erase = 1'b0;
-
-data_io data_io(
-	.sck(SPI_SCK),
-	.ss(SPI_SS2),
-	.sdi(SPI_DI),
-
-	.force_erase(force_erase),
-	.downloading(ioctl_download),
-	.size(ioctl_size),
-	.index(ioctl_index),
-
-	.clk(clk_sys),
-	.wr(ioctl_wr),
-	.a(ioctl_addr),
-	.d(ioctl_data)
-);
-
-wire [24:0] ioctl_size;
-wire        ioctl_download;
-wire [4:0]  ioctl_index;
-
-// tape download comes from OSD entry 1
-wire tape_download = (ioctl_index == 5'b00001) && ioctl_download;
-wire tape_rd;
-
-reg [2:0] tape_ack_delay = 3'd0;
-reg tape_io = 1'b0;
-
+///////////////////   TAPE   ///////////////////
+wire        tape_req;
+wire        tape_rd;
 wire [24:0] tape_addr;
-wire  [7:0] tape_data;
 
-reg tRFSH;
-reg [24:0] tape_addr_save = 25'd0;
-
-always @(posedge clk_sys) begin
-	tRFSH <= nRFSH;
-	if(tape_rd) begin
-		if(!nRFSH && tRFSH) begin
-			if(tape_addr_save != tape_addr) begin
-				tape_addr_save <= tape_addr;
-				tape_io <= 1'b1;
-				tape_ack_delay <= 3'd7;
-			end
-		end
-
-		if(tape_ack_delay != 3'd0) begin
-			tape_ack_delay <= tape_ack_delay - 3'd1;
-			if(tape_ack_delay == 3'b1) begin
-				tape_data <= sram_data;
-				tape_io <= 1'b0;
-			end
-		end
-	end
-		
-	if(nRFSH) begin
-		tape_ack_delay <= 3'd0;
-		tape_io <= 1'b0;
-	end
-end
-
-tape tape (
+tape tape
+(
 	.clk(clk_sys),
-	.reset(!nRESET),
-	.iocycle(tape_io),
+	.reset(~nRESET),
 
 	.audio_out(AUDIO_IN),
 	.pause(F1),
 
-	.downloading(tape_download),
-	.size(ioctl_size),
+	.downloading((ioctl_index == 1) && ioctl_download),
+	.addr_in(ioctl_addr),
 
+	.active(tape_req),
+	.rd_en(~nRFSH),
 	.rd(tape_rd),
-	.a(tape_addr),
-	.d(tape_data)
+	.addr_out(tape_addr),
+	.din(ram_dout)
 );
 
 endmodule
