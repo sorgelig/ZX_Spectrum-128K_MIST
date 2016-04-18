@@ -33,9 +33,6 @@ module ula
 
     input         nRESET,
     output        locked,
-    output        warm_reset,
-    output        cold_reset,
-    output        test_reset,
 
     //-------- Address and data buses -----------
     input  [15:0] addr,         // Input address bus
@@ -53,8 +50,8 @@ module ula
     //------- Keyboard ------------
     input         PS2_CLK,
     input         PS2_DAT,
-    output        F11,
-    output        F1,
+    output [11:1] Fn,
+    output  [2:0] mod,
 
     //-------- Audio --------------
     output        AUDIO_L,

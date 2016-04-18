@@ -38,32 +38,23 @@
 // PS/2 scancode to Spectrum matrix conversion
 module keyboard
 (
-	input        CLK,
-	input        nRESET,
+	input             CLK,
+	input             nRESET,
 
-	// PS/2 interface
-	input        PS2_CLK,
-	input        PS2_DAT,
+	input             PS2_CLK,
+	input             PS2_DAT,
 
-	// CPU address bus (row)
-	input [15:0] addr,
-	// Column outputs to ULA
-	output [4:0] key_data,
+	input      [15:0] addr,
+	output      [4:0] key_data,
 
-	output reg   F11 = 0,
-	output reg   F1  = 0,
-	output reg   warm_reset = 0,
-	output reg   cold_reset = 0,
-	output reg   test_reset = 0
+	output reg [11:1] Fn = 0,
+	output reg  [2:0] mod = 0
 );
 
 wire [7:0] keyb_data;
 wire       keyb_valid;
 reg  [4:0] keys[7:0];
 reg        release_btn = 0;
-reg        ctrl = 0;
-reg        alt  = 0;
-reg        shift= 0;
 
 // PS/2 interface
 ps2_intf ps2
@@ -86,6 +77,7 @@ assign key_data = (!addr[8]  ? keys[0] : 5'b11111)
                  &(!addr[14] ? keys[6] : 5'b11111)
                  &(!addr[15] ? keys[7] : 5'b11111);
 
+wire shift = mod[0];
 always @(posedge CLK) begin
 	reg old_nRESET = 1;
 	old_nRESET <= nRESET;
@@ -111,16 +103,20 @@ always @(posedge CLK) begin
 				release_btn <= 0;
 
 				case (keyb_data)
-					8'h59: shift<= !release_btn;
-					8'h14: ctrl <= !release_btn;
-					8'h11: alt  <= !release_btn;
-					8'h05: F1   <= !release_btn;
-					8'h78: begin
-								warm_reset <= ~release_btn & ctrl;
-								cold_reset <= ~release_btn & alt;
-								test_reset <= ~release_btn & shift;
-								F11 <= ~release_btn & ~shift & ~alt & ~ctrl;
-							end
+					8'h59: mod[0]<= ~release_btn; // right shift
+					8'h11: mod[1]<= ~release_btn; // alt
+					8'h14: mod[2]<= ~release_btn; // ctrl
+					8'h05: Fn[1] <= ~release_btn; // F1
+					8'h06: Fn[2] <= ~release_btn; // F2
+					8'h04: Fn[3] <= ~release_btn; // F3
+					8'h0C: Fn[4] <= ~release_btn; // F4
+					8'h03: Fn[5] <= ~release_btn; // F5
+					8'h0B: Fn[6] <= ~release_btn; // F6
+					8'h83: Fn[7] <= ~release_btn; // F7
+					8'h0A: Fn[8] <= ~release_btn; // F8
+					8'h01: Fn[9] <= ~release_btn; // F9
+					8'h09: Fn[10]<= ~release_btn; // F10
+					8'h78: Fn[11]<= ~release_btn; // F11
 				endcase
 
 				case (keyb_data)

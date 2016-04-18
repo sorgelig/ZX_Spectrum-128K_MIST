@@ -150,7 +150,7 @@ wire        nINT;
 wire        nWAIT	 = 1;
 wire        nNMI   = esxNMI;
 wire        nBUSRQ = ~(ioctl_download | ioctl_erasing);
-wire        nRESET = locked & ~buttons[1] & ~status[0] & esxRESET & ~cold_reset & ~warm_reset & ~test_reset;
+wire        nRESET = locked & ~buttons[1] & ~status[0] & esxRESET & ~(Fn[11] && mod);
 
 T80a cpu
 (
@@ -279,11 +279,10 @@ wire        clk_ula;       // 14MHz
 wire [12:0] vram_addr;
 wire  [7:0] vram_dout;
 wire  [7:0] ula_dout;
-wire        F11;
-wire        F1;
-wire        warm_reset;
-wire        cold_reset;
-wire        test_reset;
+wire [11:1] Fn;
+wire  [2:0] mod;
+wire        cold_reset = mod[1] & Fn[11];
+wire        test_reset = mod[0] & Fn[11];
 reg         AUDIO_IN;
 
 ula ula( .*, .nIORQ(trdos_en | tape_turbo | nIORQ), .din(cpu_dout), .dout(ula_dout), .turbo(status[2]), .mZX(~status[3]), .m128(status[6]));
@@ -303,7 +302,7 @@ reg         esxRQ    = 0;
 always @(posedge clk_ps2) begin
 	reg sRST1 = 0, sRST2 = 0;
 
-	sRST1 <= F11 | joystick_0[7] | joystick_1[7];
+	sRST1 <= (Fn[11] && !mod) | joystick_0[7] | joystick_1[7];
 	sRST2 <= sRST1;
 
 	if(sRST2 & ~sRST1 & ~fdd_ready) esxRQ <= 1;
@@ -425,7 +424,7 @@ smart_tape tape
 	.clk(clk_sys),
 
 	.turbo(tape_turbo),
-	.pause(F1),
+	.pause(Fn[1]),
 	.audio_out(AUDIO_IN),
 	.activity(tape_led),
 
