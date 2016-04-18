@@ -39,6 +39,7 @@ module tape
 
 	input         start,
 	input         pause,
+	output reg    active,
 
 	input         ready,
 	input         tap_mode,
@@ -85,6 +86,7 @@ always @(posedge clk) begin
 	reg  [7:0] din_r;
 
 	old_ready <= ready;
+	active <= !play_pause && read_cnt;
 
 	if(reset | ~ready) begin
 		read_cnt <= 0;
@@ -281,6 +283,7 @@ module smart_tape
 	output reg    turbo,
 	input         pause,
 	output        audio_out,
+	output        activity,
 
 	input         rd_en,
 	output        rd_req,
@@ -302,6 +305,7 @@ module smart_tape
 
 assign dout_en = tape_ld1 | tape_ld2;
 assign dout = tape_ld2 ? 8'h0 : tape_arr[cpu_addr - 16'h5CA];
+assign activity = act_cnt[23] ? act_cnt[22:15] > act_cnt[7:0] : act_cnt[22:15] <= act_cnt[7:0];
 
 reg [7:0] tape_arr[14] = '{'h18, 'hFE, 'h2E, 'hFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
@@ -338,6 +342,7 @@ always @(posedge clk, posedge reset) begin
 		tape_ready <= 0;
 		old_download  <= 0;
 		tape_allow_turbo <= 0;
+		size <= 0;
 	end else begin
 		old_download <= ioctl_download;
 		if(old_download & !ioctl_download) begin
@@ -350,6 +355,7 @@ always @(posedge clk, posedge reset) begin
 	end
 end
 
+wire       active;
 wire       byte_ready;
 wire [7:0] tape_dout;
 tape tape
@@ -359,6 +365,7 @@ tape tape
 
 	.audio_out(audio_out),
 	.pause(pause),
+	.active(active),
 
 	.ready(tape_ready),
 	.tap_mode(mode),
@@ -376,5 +383,8 @@ tape tape
 	.din(din),
 	.dout(tape_dout)
 );
+
+reg [23:0] act_cnt;
+always @(posedge clk) if(active || ~((addr<size) ^ act_cnt[23]) || act_cnt[22:0]) act_cnt <= act_cnt + 1'd1;
 
 endmodule

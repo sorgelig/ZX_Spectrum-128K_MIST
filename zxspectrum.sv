@@ -57,7 +57,7 @@ module zxspectrum
 );
 `default_nettype none
 
-assign      LED = ~(divmmc_sd_activity | ioctl_erasing | ioctl_download | fdd_read | tape_turbo);
+assign      LED = ~(divmmc_sd_activity | ioctl_erasing | ioctl_download | fdd_read | tape_led);
 
 
 //////////////////   MIST ARM I/O   ///////////////////
@@ -416,6 +416,7 @@ wire        tape_req;
 wire        tape_dout_en;
 wire        tape_turbo;
 wire  [7:0] tape_dout;
+wire        tape_led;
 
 wire [24:0] tape_addr_raw;
 smart_tape tape
@@ -426,6 +427,7 @@ smart_tape tape
 	.turbo(tape_turbo),
 	.pause(F1),
 	.audio_out(AUDIO_IN),
+	.activity(tape_led),
 
 	.rd_en(~nRFSH),
 	.rd_req(tape_req),
