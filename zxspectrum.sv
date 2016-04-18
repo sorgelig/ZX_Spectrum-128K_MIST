@@ -57,7 +57,7 @@ module zxspectrum
 );
 `default_nettype none
 
-assign      LED = ~(divmmc_sd_activity | ioctl_erasing | ioctl_download | fdd_read);
+assign      LED = ~(divmmc_sd_activity | ioctl_erasing | ioctl_download | fdd_read | tape_turbo);
 
 
 //////////////////   MIST ARM I/O   ///////////////////
@@ -86,12 +86,12 @@ reg  [10:0] clk14k_div;
 wire        clk_ps2 = clk14k_div[10];
 always @(posedge clk_sys) clk14k_div <= clk14k_div + 1'b1;
 
-user_io #(.STRLEN(127)) user_io
+user_io #(.STRLEN(125)) user_io
 (
 	.*,
 	.conf_str
 	(
-        "SPECTRUM;TRD;F1,CSW;O5,Autoload ESXDOS,No,Yes;O2,CPU Speed,3.5MHz,4MHz;O3,Video Type,ZX,Pent;O6,Video Version,48k,128k;T4,Reset"
+        "SPECTRUM;TRD;F4,TAP;F1,CSW;O5,Autoload ESXDOS,No,Yes;O2,CPU Speed,3.5MHz,4MHz;O3,Video Type,ZX,Pent;O6,Video Version,48k,128k"
 	),
 
 	// ps2 keyboard emulation
@@ -150,7 +150,7 @@ wire        nINT;
 wire        nWAIT	 = 1;
 wire        nNMI   = esxNMI;
 wire        nBUSRQ = ~(ioctl_download | ioctl_erasing);
-wire        nRESET = locked & ~buttons[1] & ~status[0] & ~status[4] & esxRESET & ~cold_reset & ~warm_reset & ~test_reset;
+wire        nRESET = locked & ~buttons[1] & ~status[0] & esxRESET & ~cold_reset & ~warm_reset & ~test_reset;
 
 T80a cpu
 (
@@ -177,31 +177,19 @@ T80a cpu
 );
 
 always_comb begin
-	casex({nMREQ, ~nM1 | nIORQ | nRD, fdd_sel, divmmc_sel, addr[7:0]==8'h1F})
-		'b0XXXX: cpu_din = ram_dout;
-		'b101XX: cpu_din = fdd_dout;
-		'b1001X: cpu_din = divmmc_dout;
-		'b10001: cpu_din = {2'b00, joystick_0[5:0] | joystick_1[5:0]};
-		'b10000: cpu_din = ula_dout;
-		'b11XXX: cpu_din = 8'hFF;
+	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel, divmmc_sel, addr[7:0]==8'h1F})
+		'b00XXXX: cpu_din = ram_dout;
+		'b01XXXX: cpu_din = tape_dout;
+		'b1X01XX: cpu_din = fdd_dout;
+		'b1X001X: cpu_din = divmmc_dout;
+		'b1X0001: cpu_din = {2'b00, joystick_0[5:0] | joystick_1[5:0]};
+		'b1X0000: cpu_din = ula_dout;
+		'b1X1XXX: cpu_din = 8'hFF;
 	endcase
 end
 
 
 //////////////////   MEMORY   //////////////////
-wire vram_we = ((addr[15:13] == 3'b010) | ((addr[15:13] == 3'b110) & page_ram[2] & page_ram[0])) & ~nMREQ & ~nWR;
-vram vram
-(
-    .clock(clk_sys),
-
-    .wraddress({addr[15] & page_ram[1], addr[12:0]}),
-    .data(cpu_dout),
-    .wren(vram_we),
-
-    .rdaddress({page_scr, vram_addr}),
-    .q(vram_dout)
-);
-
 wire        dma = (~nRESET | ~nBUSACK) & ~nBUSRQ;
 reg  [24:0] ram_addr;
 reg   [7:0] ram_din;
@@ -251,6 +239,19 @@ sram ram
 	.rd(ram_rd)
 );
 
+wire vram_we = (ram_addr[24:16] == 1) & ram_addr[14] & ~ram_addr[13];
+vram vram
+(
+    .clock(clk_sys),
+
+    .wraddress({ram_addr[15], ram_addr[12:0]}),
+    .data(ram_din),
+    .wren(ram_we & vram_we),
+
+    .rdaddress({page_scr, vram_addr}),
+    .q(vram_dout)
+);
+
 reg         test_rom;
 reg   [7:0] page_reg     = 0;
 wire        page_disable = page_reg[5];
@@ -285,7 +286,7 @@ wire        cold_reset;
 wire        test_reset;
 reg         AUDIO_IN;
 
-ula ula( .*, .nIORQ(trdos_en | nIORQ), .din(cpu_dout), .dout(ula_dout), .turbo(status[2]), .mZX(~status[3]), .m128(status[6]));
+ula ula( .*, .nIORQ(trdos_en | tape_turbo | nIORQ), .din(cpu_dout), .dout(ula_dout), .turbo(status[2]), .mZX(~status[3]), .m128(status[6]));
 
 
 //////////////////   DIVMMC   //////////////////
@@ -409,26 +410,39 @@ always @(negedge nWR) if(fdd_sel & addr[7]) {fdd_side, fdd_reset, fdd_drive} <= 
 
 
 ///////////////////   TAPE   ///////////////////
-wire        tape_req;
+wire [24:0] tape_addr = 25'h400000 + tape_addr_raw;
 wire        tape_rd;
-wire [24:0] tape_addr;
+wire        tape_req;
+wire        tape_dout_en;
+wire        tape_turbo;
+wire  [7:0] tape_dout;
 
-tape tape
+wire [24:0] tape_addr_raw;
+smart_tape tape
 (
-	.clk(clk_sys),
 	.reset(~nRESET),
+	.clk(clk_sys),
 
-	.audio_out(AUDIO_IN),
+	.turbo(tape_turbo),
 	.pause(F1),
+	.audio_out(AUDIO_IN),
 
-	.downloading((ioctl_index == 2) && ioctl_download),
-	.addr_in(ioctl_addr),
-
-	.active(tape_req),
 	.rd_en(~nRFSH),
+	.rd_req(tape_req),
 	.rd(tape_rd),
-	.addr_out(tape_addr),
-	.din(ram_dout)
+	.addr(tape_addr_raw),
+	.din(ram_dout),
+
+	.dout_en(tape_dout_en),
+	.dout(tape_dout),
+
+	.ioctl_download(ioctl_download & ((ioctl_index == 2) | (ioctl_index == 3))),
+	.ioctl_size(ioctl_addr - 25'h400000),
+	.tap_mode(ioctl_index == 2),
+
+	.cpu_addr(addr),
+	.cpu_m1(~nM1 & ~nMREQ),
+	.rom_en(&page_rom)
 );
 
 endmodule
