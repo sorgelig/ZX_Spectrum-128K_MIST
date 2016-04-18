@@ -221,7 +221,7 @@ always_comb begin
 
 	casex({dma, tape_req})
 		'b1X: ram_rd = 0;
-		'b01: ram_rd = tape_rd;
+		'b01: ram_rd = ~nMREQ;
 		'b00: ram_rd = (fdd_read | ~nMREQ) & ~nRD;
 	endcase
 end
@@ -273,6 +273,7 @@ end
 ///////////////////   ULA   ///////////////////
 wire        locked;
 wire        clk_cpu;       // CPU clock of 3.5 MHz
+wire        clk_cpu2;      // CPU clock without contention
 wire        clk_ram;       // 84MHz clock for RAM 
 wire        clk_sys;       // 28MHz for system synchronization 
 wire        clk_ula;       // 14MHz
@@ -410,7 +411,6 @@ always @(negedge nWR) if(fdd_sel & addr[7]) {fdd_side, fdd_reset, fdd_drive} <= 
 
 ///////////////////   TAPE   ///////////////////
 wire [24:0] tape_addr = 25'h400000 + tape_addr_raw;
-wire        tape_rd;
 wire        tape_req;
 wire        tape_dout_en;
 wire        tape_turbo;
@@ -421,21 +421,19 @@ wire [24:0] tape_addr_raw;
 smart_tape tape
 (
 	.reset(~nRESET),
-	.clk(clk_sys),
+	.clk(clk_cpu2),
 
 	.turbo(tape_turbo),
 	.pause(Fn[1]),
+	.prev(Fn[2]),
+	.next(Fn[3]),
 	.audio_out(AUDIO_IN),
 	.activity(tape_led),
 
 	.rd_en(~nRFSH),
-	.rd_req(tape_req),
-	.rd(tape_rd),
+	.rd(tape_req),
 	.addr(tape_addr_raw),
 	.din(ram_dout),
-
-	.dout_en(tape_dout_en),
-	.dout(tape_dout),
 
 	.ioctl_download(ioctl_download & ((ioctl_index == 2) | (ioctl_index == 3))),
 	.ioctl_size(ioctl_addr - 25'h400000),
@@ -443,7 +441,9 @@ smart_tape tape
 
 	.cpu_addr(addr),
 	.cpu_m1(~nM1 & ~nMREQ),
-	.rom_en(&page_rom)
+	.rom_en(&page_rom),
+	.dout_en(tape_dout_en),
+	.dout(tape_dout)
 );
 
 endmodule

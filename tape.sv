@@ -31,7 +31,7 @@
 module tape 
 (
 	input         reset,
-	input         clk, // 28MHz
+	input         clk,
 
 	input         std_load,
 	input         std_wait,
@@ -39,6 +39,8 @@ module tape
 
 	input         start,
 	input         pause,
+	input         prev,
+	input         next,
 	output reg    active,
 
 	input         ready,
@@ -47,34 +49,36 @@ module tape
 
 	output reg    audio_out,
 
-	input         io_en,
-	output        rd_req,
-	output reg    rd,
+	input         rd_en,
+	output        rd,
 	output [24:0] addr,
 	input   [7:0] din,
 	output  [7:0] dout
 );
 
-localparam  CLOCK = 32'd28000000;
+localparam  CLOCK = 32'd3500000;
 
-assign rd_req = ~read_ready & io_en;
+assign rd   = rd_req & rd_en;
 assign addr = size - read_cnt;
 assign dout = data;
 
 reg  [24:0] read_cnt;
-reg  [24:0] addr_o;
 reg         read_ready;
 reg   [7:0] data;
 
-always @(posedge clk) begin
-	reg old_pause, old_ready, old_start, old_en;
+reg         rd_req;
+reg   [7:0] saved_data;
+always @(negedge rd_en) saved_data <= din;
+always @(posedge rd_en) rd_req <= ~read_ready;
 
+always @(posedge clk) begin
+	reg old_pause, old_prev, old_next, old_ready, old_en;
+
+	reg [24:0] blk_list[32];
 	reg        play_pause;
-	reg  [3:0] ack_delay;
 	reg [15:0] blocksz;
 	reg  [5:0] hdrsz;
 	reg [15:0] pilot;
-	reg  [2:0] fdiv;
 	reg [12:0] tick;
 	reg  [7:0] state;
 	reg [31:0] bitcnt;
@@ -84,6 +88,9 @@ always @(posedge clk) begin
 	reg [31:0] clk_play_cnt;
 	reg        blk_type;
 	reg  [7:0] din_r;
+	reg        skip;
+	reg        auto_blk;
+	reg  [4:0] blk_num;
 
 	old_ready <= ready;
 	active <= !play_pause && read_cnt;
@@ -97,39 +104,32 @@ always @(posedge clk) begin
 		reload32 <= 0;
 		bitcnt <= 1;
 		blk_type <= 0;
-		rd <= 0;
-		ack_delay <= 0;
+		skip <= 0;
+		auto_blk <= 0;
+		blk_list <= '{default:0};
+		blk_num <= 0;
 	end else begin
 
-		old_en <= io_en;
+		old_en <= rd_en;
 		if(!read_ready) begin
-			if(!old_en & io_en) begin
-				rd <= 1;
-				ack_delay <= 10;
-			end
-
-			if(ack_delay) begin
-				ack_delay <= ack_delay - 1'd1;
-				if(ack_delay == 1) begin
-					din_r <= din;
-					rd <= 0;
-					read_ready <= 1;
-				end
+			if(old_en & ~rd_en & rd_req) begin
+				din_r <= saved_data;
+				read_ready <= 1;
 			end
 		end
 
-		if(!io_en) begin
-			ack_delay <= 0;
-			rd <= 0;
-		end
-
-		old_start <= start;
-		if(!old_start & start) play_pause <= 0;
+		if(start & ~auto_blk) play_pause <= 0;
 
 		old_pause <= pause;
-		if(pause && old_pause) play_pause <= !play_pause;
-		
-		if(~old_ready & ready) read_cnt <= size;
+		if(pause & ~old_pause & ~std_load) begin
+			play_pause <= ~play_pause;
+			auto_blk <= ~play_pause;
+		end
+
+		if(ready & ~old_ready) begin
+			read_cnt <= size;
+			blk_list[0] <= size;
+		end
 
 		if(tap_mode) begin
 			if(hdrsz && read_ready) begin
@@ -140,28 +140,34 @@ always @(posedge clk) begin
 				read_cnt <= read_cnt - 1'b1;
 			end
 
-			fdiv <= fdiv + 1'b1;
-			if(!fdiv & !play_pause & (read_cnt || state)) begin
+			if(!play_pause & (read_cnt || state)) begin
 				if(tick) begin
 					tick <= tick - 1'b1;
 					if(tick == 1) audio_out <= ~audio_out;
 				end else begin
 					case(state)
 						0: begin
-								pilot <= std_load ? 16'd20 : 16'd3220;
 								hdrsz <= 2;
 								read_ready <= 0;
+								pilot <= std_load ? 16'd20 : 16'd3220;
 								timeout <= 3500000;
 								state <= state + 1'b1;
 							end
 						1: begin
-								if(pilot) begin
-									tick <= 2168;
-									pilot <= pilot - 1'b1;
+								if(skip) begin
+									if(!hdrsz && read_ready) begin
+										blk_type <= din_r[7];
+										state <= 4;
+									end
 								end else begin
-									blk_type <= din_r[7];
-									if(~din_r[7] & ~std_load) pilot <= 4844;
-									state <= state + 1'b1;
+									if(pilot) begin
+										tick <= 2168;
+										pilot <= pilot - 1'b1;
+									end else begin
+										blk_type <= din_r[7];
+										if(~din_r[7] & ~std_load) pilot <= 4844;
+										state <= state + 1'b1;
+									end
 								end
 							end
 						2: begin
@@ -184,14 +190,28 @@ always @(posedge clk) begin
 										data <= din_r;
 										read_cnt <= read_cnt - 1'b1;
 										bitcnt <= 8;
-										state <= state + 1'b1;
-										if(std_load) state <= 7;
+										if(skip) begin
+											blocksz <= blocksz - 1'b1;
+											timeout <= 0;
+										end else begin
+											state <= state + 1'b1;
+											if(std_load) state <= 7;
+										end
 									end
 								end else begin
-									if(blk_type && read_cnt) play_pause <= 1;
-									blk_type <= 0;
-									timeout <= timeout - 1'b1;
-									if(!read_cnt || !timeout) state <= 0;
+									if(!read_cnt || !timeout) begin
+										if(blk_type && read_cnt) begin
+											blk_num <= blk_num + 1'b1;
+											blk_list[blk_num + 1'b1] <= read_cnt;
+											play_pause <= ~skip;
+											auto_blk <= 0;
+											skip <= 0;
+										end
+										blk_type <= 0;
+										state <= 0;
+									end else begin
+										timeout <= timeout - 1'b1;
+									end
 								end
 							end
 						5: begin
@@ -228,6 +248,28 @@ always @(posedge clk) begin
 					endcase
 				end
 			end
+
+			old_prev <= prev;
+			if(prev & ~old_prev & ~std_load) begin 
+				play_pause <= 0;
+				auto_blk <= 0;
+				if((state>3) || !blk_num) read_cnt <= blk_list[blk_num];
+				else begin 
+					blk_num <= blk_num - 1'b1;
+					read_cnt <= blk_list[blk_num - 1'b1];
+				end
+				state <= 0;
+				tick <= 0;
+			end
+
+			old_next <= next;
+			if(next & ~old_next & ~std_load) begin 
+				play_pause <= 0;
+				auto_blk <= 0;
+				skip <= 1;
+				tick <= 0;
+			end
+
 		end else begin
 			if(~old_ready & ready) begin
 				hdrsz <= 32;
@@ -282,17 +324,15 @@ module smart_tape
 
 	output reg    turbo,
 	input         pause,
+	input         prev,
+	input         next,
 	output        audio_out,
 	output        activity,
 
 	input         rd_en,
-	output        rd_req,
 	output        rd,
 	output [24:0] addr,
 	input   [7:0] din,
-
-	output        dout_en,
-	output  [7:0] dout,
 
 	input         ioctl_download,
 	input  [24:0] ioctl_size,
@@ -300,12 +340,14 @@ module smart_tape
 
 	input  [15:0] cpu_addr,
 	input         cpu_m1,
-	input         rom_en
+	input         rom_en,
+	output        dout_en,
+	output  [7:0] dout
 );
 
 assign dout_en = tape_ld1 | tape_ld2;
 assign dout = tape_ld2 ? 8'h0 : tape_arr[cpu_addr - 16'h5CA];
-assign activity = act_cnt[23] ? act_cnt[22:15] > act_cnt[7:0] : act_cnt[22:15] <= act_cnt[7:0];
+assign activity = act_cnt[20] ? act_cnt[19:12] > act_cnt[7:0] : act_cnt[19:12] <= act_cnt[7:0];
 
 reg [7:0] tape_arr[14] = '{'h18, 'hFE, 'h2E, 'hFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
@@ -365,6 +407,8 @@ tape tape
 
 	.audio_out(audio_out),
 	.pause(pause),
+	.prev(prev),
+	.next(next),
 	.active(active),
 
 	.ready(tape_ready),
@@ -376,15 +420,14 @@ tape tape
 	.std_ready(byte_ready),
 
 	.start(tone_wait | turbo),
-	.rd_req(rd_req),
-	.io_en(rd_en),
+	.rd_en(rd_en),
 	.rd(rd),
 	.addr(addr),
 	.din(din),
 	.dout(tape_dout)
 );
 
-reg [23:0] act_cnt;
-always @(posedge clk) if(active || ~((addr<size) ^ act_cnt[23]) || act_cnt[22:0]) act_cnt <= act_cnt + 1'd1;
+reg [20:0] act_cnt;
+always @(posedge clk) if(active || ~((addr<size) ^ act_cnt[20]) || act_cnt[19:0]) act_cnt <= act_cnt + 1'd1;
 
 endmodule

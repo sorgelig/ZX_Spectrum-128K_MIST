@@ -28,6 +28,7 @@ module ula
     output        SDRAM_CLK,    // SDRAM clock phase shifted for chip
     input         turbo,
     output        clk_cpu,      // CPU clock
+    output        clk_cpu2,     // CPU clock without contention
     output        clk_sys,      // System master clock (28 MHz)
     output        clk_ula,		  // System master clock (14 MHz)
 
@@ -109,6 +110,13 @@ clk_switch switch
 	.out_clk(clk_cpu)
 );
 
+clk_switch switch2
+(
+	.clk_a(counter0[3]),
+	.clk_b(clk_cpu_turbo),
+	.select(~turbo),
+	.out_clk(clk_cpu2)
+);
 
 ////////////////////  ULA PORTS  ///////////////////
 wire        io_we  = ~nIORQ & ~nWR & nM1;
