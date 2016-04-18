@@ -126,7 +126,6 @@ reg  [5:0] INTCnt = 1;
 reg  [7:0] ff_data;
 reg        HBlank = 1;
 reg        HSync;
-reg        VBlank = 1;
 reg        VSync;
 
 reg  [7:0] SRegister;
@@ -160,11 +159,13 @@ always @(negedge clk7) begin
 			else if (hc == 368) HSync <= 0; //ULA 5C
 	end
 
-	if (vc == 248) VBlank <= 1;
-		else if (vc == 256) VBlank <= 0;
-
-	if (vc == 248) VSync <= 1;
-		else if (vc == 252) VSync <= 0;
+	if(mZX) begin
+		if(vc == 240) VSync <= 1;
+			else if (vc == 244) VSync <= 0;
+	end else begin
+		if(vc == 248) VSync <= 1;
+			else if (vc == 256) VSync <= 0;
+	end
 
 	if( mZX && (vc == 248) && (hc == (m128 ? 6 : 2))) INT <= 1;
 	if(!mZX && (vc == 239) && (hc == 324)) INT <= 1;
@@ -200,7 +201,7 @@ always @(posedge VSync) FlashCnt <= FlashCnt + 1'd1;
 
 wire I,G,R,B;
 wire Pixel = SRegister[7] ^ (AttrOut[7] & FlashCnt[4]);
-assign {I,G,R,B} = (HBlank || VBlank) ? 4'b0000 : Pixel ? {AttrOut[6],AttrOut[2:0]} : {AttrOut[6],AttrOut[5:3]};
+assign {I,G,R,B} = (HBlank || VSync) ? 4'b0000 : Pixel ? {AttrOut[6],AttrOut[2:0]} : {AttrOut[6],AttrOut[5:3]};
 
 //T80 has incorrect nIORQ signal activated at T1 instead of T2.
 reg nIORQ_T2;
