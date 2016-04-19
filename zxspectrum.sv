@@ -363,8 +363,8 @@ wire  [7:0] fdd_dout = addr[7] ? {fdd_intrq, fdd_drq, 6'h3F} : wd_dout;
 
 wd1793 fdd
 (
-	.clk(clk_cpu),
-	.reset(~fdd_reset),
+	.clk(clk_cpu2),
+	.reset(fdd_reset),
 	.ce(fdd_sel & ~addr[7]),
 	.rd(~nRD),
 	.wr(~nWR),
@@ -383,6 +383,12 @@ wd1793 fdd
 	.side(fdd_side),
 	.ready(!fdd_drive & fdd_ready)
 );
+
+always @(posedge clk_cpu2) begin
+	reg old_wr;
+	old_wr <= nWR;
+	if(old_wr & ~nWR & fdd_sel & addr[7]) {fdd_side, fdd_reset, fdd_drive} <= {~cpu_dout[4], ~cpu_dout[2], cpu_dout[1:0]};
+end
 
 always @(negedge ioctl_download, posedge cold_reset) begin
 	if(cold_reset) begin
@@ -405,8 +411,6 @@ always @(posedge m_pos, negedge nRESET) begin
 			else if((addr[13:8] == 6'h3D) & page_rom[0] & fdd_ready) trdos_en <= 1;
 	end
 end
-
-always @(negedge nWR) if(fdd_sel & addr[7]) {fdd_side, fdd_reset, fdd_drive} <= {~cpu_dout[4], cpu_dout[2], cpu_dout[1:0]};
 
 
 ///////////////////   TAPE   ///////////////////

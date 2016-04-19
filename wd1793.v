@@ -82,16 +82,16 @@ always @* begin
 		3: buff_a = {{dts, 2'b00}   + dts + wdstat_sector - 1'd1, byte_addr[9:0]};
 	endcase
 	case(size_code)
-		0: sectors_per_track <= 26;
-		1: sectors_per_track <= 16;
-		2: sectors_per_track <= 9;
-		3: sectors_per_track <= 5;
+		0: sectors_per_track = 26;
+		1: sectors_per_track = 16;
+		2: sectors_per_track = 9;
+		3: sectors_per_track = 5;
 	endcase
 	case(size_code)
-		0: sector_size <= 128;
-		1: sector_size <= 256;
-		2: sector_size <= 512;
-		3: sector_size <= 1024;
+		0: sector_size = 128;
+		1: sector_size = 256;
+		2: sector_size = 512;
+		3: sector_size = 1024;
 	endcase
 end
 
@@ -179,14 +179,14 @@ wire        rde = rd & ce;
 wire        wre = wr & ce;
 always @(posedge clk or posedge reset) begin
 	reg old_wr, old_rd;
-	reg [2:0] cur_addr;
-	reg read_data, write_data;
-	reg read_type;
-	integer wait_time;
 
-	// Timer for keeping DRQ pace
-	reg   [3:0] read_timer;
-	reg   [9:0] seektimer;
+	reg [2:0] cur_addr;
+	reg       read_data;
+	reg       write_data;
+	reg       read_type;
+	integer   wait_time;
+	reg [3:0] read_timer;
+	reg [9:0] seektimer;
 
 	if(reset) begin
 		read_data <= 0;
@@ -199,12 +199,12 @@ always @(posedge clk or posedge reset) begin
 		data_rdlength <= 0;
 		byte_addr <=0;
 		{buff_rd,buff_wr} <= 0;
-		wdstat_multisector <= 1'b0;
+		wdstat_multisector <= 0;
 		state <= STATE_READY;
-		cmd_mode <= 1'b0;
+		cmd_mode <= 0;
 		{s_headloaded, s_seekerr, s_crcerr, s_intrq, s_index} <= 0;
 		{s_wrfault, s_lostdata} <= 0;
-		s_drq_busy <= 2'b00;
+		s_drq_busy <= 0;
 		wdstat_pending <= 0;
 		watchdog_set <= 0;
 		seektimer <= 10'h3FF;
@@ -229,7 +229,7 @@ always @(posedge clk or posedge reset) begin
 				A_COMMAND:
 					begin
 						s_intrq <= 0;
-						if (din[7:4] == 4'hD) begin
+						if(din[7:4] == 'hD) begin
 							// interrupt
 							cmd_mode <= 0;
 
@@ -271,7 +271,7 @@ always @(posedge clk or posedge reset) begin
 						begin
 							// head load as specified, index, track0
 							s_headloaded <= wdstat_command[3];
-							s_index <= 1'b1;
+							s_index <= 1;
 							wdstat_track <= 0;
 							disk_track <= 0;
 
@@ -284,7 +284,7 @@ always @(posedge clk or posedge reset) begin
 							// set real track to datareg
 							disk_track <= wdstat_datareg; 
 							s_headloaded <= wdstat_command[3];
-							s_index <= 1'b1;
+							s_index <= 1;
 							
 							// get busy 
 							s_drq_busy <= 2'b01;
@@ -307,7 +307,7 @@ always @(posedge clk or posedge reset) begin
 							if (wdstat_command[4]) wdstat_track <= wNextTrack;
 								
 							s_headloaded <= wdstat_command[3];
-							s_index <= 1'b1;
+							s_index <= 1;
 
 							// some programs like it when FDC gets busy for a while
 							s_drq_busy <= 2'b01;
@@ -339,7 +339,7 @@ always @(posedge clk or posedge reset) begin
 							data_rdlength <= sector_size;
 							byte_addr <= 0;
 							write_data <= 0;
-							buff_wr <=1;
+							buff_wr <= 1;
 
 							state <= STATE_WRITESECT;
 						end								
@@ -349,17 +349,17 @@ always @(posedge clk or posedge reset) begin
 							s_drq_busy <= 2'b01;
 							{s_wrfault,s_seekerr,s_crcerr,s_lostdata} <= 0;
 
-							wdstat_multisector <= 1'b0;
+							wdstat_multisector <= 0;
 							state <= STATE_WAIT_READ;
 							data_rdlength <= 6;
-							read_type <=0;
+							read_type <= 0;
 
 							read_addr[0] <= disk_track;
 							read_addr[1] <= {7'b0, side};
 							read_addr[2] <= wdstat_sector;
 							read_addr[3] <= size_code;
-							read_addr[4] <= 8'd0;
-							read_addr[5] <= 8'd0;
+							read_addr[4] <= 0;
+							read_addr[5] <= 0;
 						end
 					4'hE,	// READ TRACK
 					4'hF:	// WRITE TRACK
@@ -386,17 +386,16 @@ always @(posedge clk or posedge reset) begin
 					if(!seektimer) begin
 						if(wdstat_multisector && (wdstat_sector > sectors_per_track)) begin
 							if(wdstat_multisector) s_seekerr <= 1;
-							wdstat_multisector <= 1'b0;
+							wdstat_multisector <= 0;
 							state <= STATE_ENDCOMMAND;
 						end else begin
 							buff_rd <= read_type;
-							byte_addr <=0;
+							byte_addr <= 0;
 							state <= STATE_READ_2;
 						end
 					end
 				end
 			end
-
 		STATE_READ_1:
 			begin
 				// increment data pointer, decrement byte count
@@ -416,9 +415,9 @@ always @(posedge clk or posedge reset) begin
 				if (read_timer != 0) 
 					read_timer <= read_timer - 1'b1;
 				else begin
-					read_data <=0;
+					read_data <= 0;
 					watchdog_set <= 0;
-					s_lostdata <= 1'b0;
+					s_lostdata <= 0;
 					s_drq_busy <= 2'b11;
 					state <= STATE_READSECT;
 				end
@@ -445,7 +444,7 @@ always @(posedge clk or posedge reset) begin
 							state <= STATE_WAIT_READ;
 						end else begin
 							if(wdstat_multisector) s_seekerr <= 1;
-							wdstat_multisector <= 1'b0;
+							wdstat_multisector <= 0;
 							state <= STATE_ENDCOMMAND;
 						end
 					end else begin
@@ -468,7 +467,7 @@ always @(posedge clk or posedge reset) begin
 						byte_addr <= 0;
 						state <= STATE_WRITESECT;
 					end else begin
-						wdstat_multisector <= 1'b0;
+						wdstat_multisector <= 0;
 						state <= STATE_ENDCOMMAND;
 					end
 				end
@@ -477,9 +476,9 @@ always @(posedge clk or posedge reset) begin
 			begin
 				if (write_data) begin
 					s_drq_busy <= 2'b01;			// busy, clear drq
-					s_lostdata <= 1'b0;
+					s_lostdata <= 0;
 					state <= STATE_WRITE_2;
-					write_data <=0;
+					write_data <= 0;
 				end
 			end
 		STATE_WRITE_2:
@@ -543,7 +542,6 @@ parameter TIME = 16'd2048; // 2048 seems to work better than expected 100 (32us)
 assign q = (timer == 0);
 
 reg [15:0] timer;
-
 always @(posedge clk) begin
 	if (cock) begin
 		timer <= TIME;
