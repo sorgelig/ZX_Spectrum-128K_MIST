@@ -48,12 +48,7 @@ set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
 # Pin & Location Assignments
 # ==========================
 set_location_assignment PIN_7 -to LED
-set_location_assignment PIN_22 -to CLOCK_50[0]
-set_location_assignment PIN_23 -to CLOCK_50[1]
-set_location_assignment PIN_128 -to CLOCK_32[0]
-set_location_assignment PIN_129 -to CLOCK_32[1]
 set_location_assignment PIN_54 -to CLOCK_27
-set_location_assignment PIN_55 -to CLOCK_27_1
 set_location_assignment PIN_144 -to VGA_R[5]
 set_location_assignment PIN_143 -to VGA_R[4]
 set_location_assignment PIN_142 -to VGA_R[3]
@@ -137,7 +132,6 @@ set_global_assignment -name FAMILY "Cyclone III"
 set_global_assignment -name TOP_LEVEL_ENTITY zxspectrum
 set_global_assignment -name DEVICE_FILTER_PACKAGE TQFP
 set_global_assignment -name DEVICE_FILTER_PIN_COUNT 144
-set_global_assignment -name ALLOW_POWER_UP_DONT_CARE ON
 set_global_assignment -name SYNTH_TIMING_DRIVEN_SYNTHESIS ON
 
 # Fitter Assignments
@@ -166,7 +160,6 @@ set_global_assignment -name FITTER_EFFORT "AUTO FIT"
 
 # EDA Netlist Writer Assignments
 # ==============================
-set_global_assignment -name EDA_SIMULATION_TOOL "<None>"
 
 # Assembler Assignments
 # =====================
@@ -193,9 +186,8 @@ set_global_assignment -name OUTPUT_IO_TIMING_FAR_END_VMEAS "HALF SIGNAL SWING" -
 # start EDA_TOOL_SETTINGS(eda_simulation)
 # ---------------------------------------
 
-	# EDA Netlist Writer Assignments
-	# ==============================
-set_global_assignment -name EDA_OUTPUT_DATA_FORMAT NONE -section_id eda_simulation
+# EDA Netlist Writer Assignments
+# ==============================
 
 # end EDA_TOOL_SETTINGS(eda_simulation)
 # -------------------------------------
@@ -203,8 +195,8 @@ set_global_assignment -name EDA_OUTPUT_DATA_FORMAT NONE -section_id eda_simulati
 # ------------------------
 # start ENTITY(zxspectrum)
 
-	# Pin & Location Assignments
-	# ==========================
+# Pin & Location Assignments
+# ==========================
 set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_DQ[0]
 set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_DQ[1]
 set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_DQ[2]
@@ -275,8 +267,8 @@ set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[13]
 set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[14]
 set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[15]
 
-	# Fitter Assignments
-	# ==================
+# Fitter Assignments
+# ==================
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to SDRAM_A[0]
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to SDRAM_A[1]
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to SDRAM_A[2]

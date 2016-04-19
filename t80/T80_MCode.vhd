@@ -60,6 +60,7 @@
 --
 --	0242 : Fixed I/O instruction timing, cleanup
 --
+-- altera message_off 10492
 
 library IEEE;
 use IEEE.std_logic_1164.all;

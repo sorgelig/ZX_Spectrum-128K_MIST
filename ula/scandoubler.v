@@ -93,7 +93,7 @@ reg [17:0] sd_out;
 // ==================================================================
 
 // 2 lines of 1024 pixels 3*4 bit RGB
-reg [17:0] sd_buffer[2047:0];
+(* ramstyle = "no_rw_check" *) reg [17:0] sd_buffer[2047:0];
 
 // use alternating sd_buffers when storing/reading data   
 reg        line_toggle;
