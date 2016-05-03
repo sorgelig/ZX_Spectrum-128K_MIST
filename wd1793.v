@@ -27,14 +27,15 @@
 
 module wd1793
 (
-	input        clk,			 // clock: e.g. 3MHz
-	input        reset,	 	 // async reset
-	input        ce,
-	input        rd,			 // i/o read
-	input        wr,			 // i/o write
-	input  [1:0] addr,		 // i/o port addr
-	input  [7:0] din,		    // i/o data in
-	output [7:0] dout,		 // i/o data out
+	input        clk_sys,    // sys clock
+	input        ce,         // ce at CPU clock rate
+	input        reset,	     // async reset
+	input        io_en,
+	input        rd,         // i/o read
+	input        wr,         // i/o write
+	input  [1:0] addr,       // i/o port addr
+	input  [7:0] din,        // i/o data in
+	output [7:0] dout,       // i/o data out
 	output       drq,        // DMA request
 	output       intrq,
 	output       busy,
@@ -96,27 +97,27 @@ always @* begin
 end
 
 // Register addresses				
-parameter A_COMMAND	      = 0;
-parameter A_STATUS	      = 0;
-parameter A_TRACK 	      = 1;
-parameter A_SECTOR	      = 2;
-parameter A_DATA		      = 3;
+parameter A_COMMAND         = 0;
+parameter A_STATUS          = 0;
+parameter A_TRACK           = 1;
+parameter A_SECTOR          = 2;
+parameter A_DATA            = 3;
 
 // States
-parameter STATE_READY 		= 0;	/* Initial, idle, sector data read */
-parameter STATE_WAIT_READ	= 1;	/* wait until read operation completes -> STATE_READ_2/STATE_READY */
-parameter STATE_WAIT			= 2;	/* NOP operation wait -> STATE_READY */
-parameter STATE_ABORT		= 3;	/* Abort current command ($D0) -> STATE_READY */
-parameter STATE_READ_2   	= 4;	/* Buffer-to-host: wait before asserting DRQ -> STATE_READ_3 */
-parameter STATE_READ_3		= 5;	/* Buffer-to-host: load data into reg, assert DRQ -> STATE_READY */
-parameter STATE_WAIT_WRITE	= 6;	/* wait until write operation completes -> STATE_READY */
-parameter STATE_READ_1		= 7;	/* Buffer-to-host: increment data pointer, decrement byte count -> STATE_READ_2*/
-parameter STATE_WRITE_1		= 8;	/* Host-to-buffer: wr = 1 -> STATE_WRITE_2 */
-parameter STATE_WRITE_2		= 9;	/* Host-to-buffer: wr = 0, next addr -> STATE_WRITESECT/STATE_WAIT_WRITE */
-parameter STATE_WRITESECT	= 10; /* Host-to-buffer: wait data from host -> STATE_WRITE_1 */
-parameter STATE_READSECT	= 11; /* Buffer-to-host */
-parameter STATE_WAIT_2		= 12;
-parameter STATE_ENDCOMMAND	= 14; /* All commands end here -> STATE_ENDCOMMAND2 */
+parameter STATE_READY       = 0;	/* Initial, idle, sector data read */
+parameter STATE_WAIT_READ   = 1;	/* wait until read operation completes -> STATE_READ_2/STATE_READY */
+parameter STATE_WAIT        = 2;	/* NOP operation wait -> STATE_READY */
+parameter STATE_ABORT       = 3;	/* Abort current command ($D0) -> STATE_READY */
+parameter STATE_READ_2      = 4;	/* Buffer-to-host: wait before asserting DRQ -> STATE_READ_3 */
+parameter STATE_READ_3      = 5;	/* Buffer-to-host: load data into reg, assert DRQ -> STATE_READY */
+parameter STATE_WAIT_WRITE  = 6;	/* wait until write operation completes -> STATE_READY */
+parameter STATE_READ_1      = 7;	/* Buffer-to-host: increment data pointer, decrement byte count -> STATE_READ_2*/
+parameter STATE_WRITE_1     = 8;	/* Host-to-buffer: wr = 1 -> STATE_WRITE_2 */
+parameter STATE_WRITE_2     = 9;	/* Host-to-buffer: wr = 0, next addr -> STATE_WRITESECT/STATE_WAIT_WRITE */
+parameter STATE_WRITESECT   = 10; /* Host-to-buffer: wait data from host -> STATE_WRITE_1 */
+parameter STATE_READSECT    = 11; /* Buffer-to-host */
+parameter STATE_WAIT_2      = 12;
+parameter STATE_ENDCOMMAND  = 14; /* All commands end here -> STATE_ENDCOMMAND2 */
 
 // State variables
 reg   [7:0] wdstat_track;
@@ -153,7 +154,7 @@ wire  [7:0] wdstat_status = cmd_mode == 0 ?
 // Watchdog	
 reg	      watchdog_set;
 wire	      watchdog_bark;
-watchdog	dogbert(.clk(clk), .cock(watchdog_set), .q(watchdog_bark));
+watchdog	dogbert(.clk_sys(clk_sys), .ce(ce), .cock(watchdog_set), .q(watchdog_bark));
 
 reg   [7:0] read_addr[6];
 reg   [7:0] q;
@@ -162,7 +163,7 @@ always @* begin
 		A_TRACK:  q = wdstat_track;
 		A_SECTOR: q = wdstat_sector;
 		A_STATUS: q = wdstat_status;
-		A_DATA:	 q = (state == STATE_READY) ? wdstat_datareg : buff_rd ? buff_din : read_addr[byte_addr[2:0]];
+		A_DATA:   q = (state == STATE_READY) ? wdstat_datareg : buff_rd ? buff_din : read_addr[byte_addr[2:0]];
 	endcase
 end
 
@@ -170,14 +171,14 @@ reg         buff_rd;
 reg         buff_wr;
 
 // Reusable expressions
-wire 	    	wStepDir   = wdstat_command[6] ? wdstat_command[5] : wdstat_stepdirection;
+wire        wStepDir   = wdstat_command[6] ? wdstat_command[5] : wdstat_stepdirection;
 wire  [7:0] wNextTrack = wStepDir ? disk_track - 8'd1 : disk_track + 8'd1;
 wire [10:0]	wRdLengthMinus1 = data_rdlength - 1'b1;
 wire [10:0]	wBuffAddrPlus1  = byte_addr + 1'b1;
 
-wire        rde = rd & ce;
-wire        wre = wr & ce;
-always @(posedge clk or posedge reset) begin
+wire        rde = rd & io_en;
+wire        wre = wr & io_en;
+always @(posedge clk_sys or posedge reset) begin
 	reg old_wr, old_rd;
 
 	reg [2:0] cur_addr;
@@ -208,7 +209,7 @@ always @(posedge clk or posedge reset) begin
 		wdstat_pending <= 0;
 		watchdog_set <= 0;
 		seektimer <= 10'h3FF;
-	end else begin
+	end else if(ce) begin
 		old_wr <=wre;
 		old_rd <=rde;
 
@@ -315,10 +316,10 @@ always @(posedge clk or posedge reset) begin
 						end
 					4'h8, 4'h9: // READ SECTORS
 						// seek data
-						// 4: m:	0: one sector, 1: until the track ends
-						// 3: S: 	SIDE
-						// 2: E:	some 15ms delay
-						// 1: C:	check side matching?
+						// 4: m: 0: one sector, 1: until the track ends
+						// 3: S: SIDE
+						// 2: E: some 15ms delay
+						// 1: C: check side matching?
 						// 0: 0
 						begin
 							// side is specified in the secondary control register ($1C)
@@ -506,7 +507,7 @@ always @(posedge clk or posedge reset) begin
 
 		STATE_WAIT:
 			begin
-				wait_time = 4000;
+				wait_time <= 4000;
 				state <= STATE_WAIT_2;
 			end
 		STATE_WAIT_2:
@@ -533,7 +534,8 @@ endmodule
 // start ticking when cock goes down
 module watchdog
 (
-	input  clk, 
+	input  clk_sys,
+	input  ce,
 	input  cock,
 	output q
 );
@@ -542,11 +544,10 @@ parameter TIME = 16'd2048; // 2048 seems to work better than expected 100 (32us)
 assign q = (timer == 0);
 
 reg [15:0] timer;
-always @(posedge clk) begin
-	if (cock) begin
-		timer <= TIME;
-	end else begin
-		if (timer != 0) timer <= timer - 1'b1;
+always @(posedge clk_sys) begin
+	if(ce) begin
+		if(cock) timer <= TIME;
+			else if(timer != 0) timer <= timer - 1'b1;
 	end
 end
 
