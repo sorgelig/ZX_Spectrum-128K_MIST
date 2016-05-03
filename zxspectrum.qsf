@@ -336,24 +336,21 @@ set_global_assignment -name FLOW_ENABLE_IO_ASSIGNMENT_ANALYSIS ON
 set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
-set_global_assignment -name VHDL_FILE t80/T80se.vhd
-set_global_assignment -name VHDL_FILE t80/T80s.vhd
 set_global_assignment -name VHDL_FILE t80/T80a.vhd
 set_global_assignment -name VHDL_FILE t80/T80_Reg.vhd
 set_global_assignment -name VHDL_FILE t80/T80_Pack.vhd
 set_global_assignment -name VHDL_FILE t80/T80_MCode.vhd
 set_global_assignment -name VHDL_FILE t80/T80_ALU.vhd
 set_global_assignment -name VHDL_FILE t80/T80.vhd
-set_global_assignment -name VERILOG_FILE ula/ay8910.v
-set_global_assignment -name SYSTEMVERILOG_FILE ula/ym2149.sv
-set_global_assignment -name VERILOG_FILE ula/sigma_delta_dac.v
-set_global_assignment -name VERILOG_FILE ula/ps2_intf.v
-set_global_assignment -name VERILOG_FILE ula/pll.v
-set_global_assignment -name VERILOG_FILE ula/keyboard.v
-set_global_assignment -name VERILOG_FILE ula/scandoubler.v
-set_global_assignment -name VERILOG_FILE ula/osd.v
-set_global_assignment -name SYSTEMVERILOG_FILE ula/video.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ula/ula.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ym2149.sv
+set_global_assignment -name VERILOG_FILE sigma_delta_dac.v
+set_global_assignment -name VERILOG_FILE ps2_intf.v
+set_global_assignment -name VERILOG_FILE pll.v
+set_global_assignment -name VERILOG_FILE keyboard.v
+set_global_assignment -name VERILOG_FILE scandoubler.v
+set_global_assignment -name VERILOG_FILE osd.v
+set_global_assignment -name SYSTEMVERILOG_FILE video.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ula.sv
 set_global_assignment -name VERILOG_FILE vram.v
 set_global_assignment -name VERILOG_FILE sram.v
 set_global_assignment -name VERILOG_FILE spi.v
