@@ -4,6 +4,7 @@ Some verilog models from Till Harbaum [Spectrum](https://github.com/mist-devel/m
 
 ### Features:
 - Fully functional ZX Spectrum 48K, 128K and Pentagon 128 with correct CPU and Video timings
+- Turbo 7MHz, 14MHz, 28MHz, 56MHz.
 - DivMMC with [ESXDOS](http://www.esxdos.org/) (TAP, TRD, SNA files)
 - Original Tape loading through OSD (CSW files)
 - TR-DOS and native TRD images (read-only)
@@ -35,6 +36,16 @@ In normal mode, while TAP loading, the following keys can be used:
 - F3 - skip to next part
 
 **CSW** files are supported and always loaded in normal mode. This format is useful only for apps using non-standard loaders with non-standard transfer speeds. Can use F1 key to pause/continue.
+
+### Turbo modes
+You can control CPU speed by following keys:
+- F4 - normal speed (3.5MHz)
+- F5 - 7MHz
+- F6 - 14MHz
+- F7 - 28MHz
+- F8 - 56MHz
+
+It's useful to switch to maximum speed when you are loading tape in normal mode. Due to SDRAM speed limitation 28MHz and 56MHz speeds include wait states, so effective CPU speed is lower than nominal.
 
 ### Download precompiled binaries and system ROMs:
 Go to [releases](https://github.com/sorgelig/ZX_Spectrum-128K_MIST/tree/master/releases) folder.
