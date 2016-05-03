@@ -1,7 +1,7 @@
 //
 // sram.v
 //
-// Static RAM controller implementation for slow bus (<10MHz) using SDRAM MT48LC16M16A2
+// Static RAM controller implementation using SDRAM MT48LC16M16A2
 // 
 // Copyright (c) 2015 Sorgelig
 //
@@ -45,7 +45,8 @@ module sram (
 	output reg  [7:0] dout,	       // data output to cpu
 	input       [7:0] din,         // data input from cpu
 	input             we,          // cpu requests write
-	input             rd           // cpu requests read
+	input             rd,          // cpu requests read
+	output reg        ready
 );
 
 assign SDRAM_nCS  = command[3];
@@ -112,7 +113,7 @@ always @(posedge clk_sdram) begin
 	reg [24:0] save_addr;
 	reg        save_we;
 	reg        save_addr0;
-	reg        ready;
+	reg        avail;
 
 	command <= CMD_NOP;
 
@@ -120,6 +121,7 @@ always @(posedge clk_sdram) begin
 
    if(data_ready_delay[0]) begin
 		dout  <= save_addr0 ? SDRAM_DQ[15:8] : SDRAM_DQ[7:0];
+		avail <= 1;
 		ready <= 1;
    end
 
@@ -176,6 +178,7 @@ always @(posedge clk_sdram) begin
 			//------------------------------------------------------
 			if(!startup_refresh_count) begin
 				state   <= STATE_IDLE;
+				avail   <= 1;
 				ready   <= 1;
 				startup_refresh_count <= 14'd2048 - cycles_per_refresh + 1'd1;
 			end
@@ -205,10 +208,10 @@ always @(posedge clk_sdram) begin
 		STATE_IDLE: begin
 			// Priority is to issue a refresh if one is outstanding
 			if(forcing_refresh) state <= STATE_IDLE_1;
-			else if(ready & (new_rd | new_we)) begin
+			else if(avail & (new_rd | new_we)) begin
 				save_addr<= addr;
 				save_we  <= new_we;
-				ready    <= 0;
+				avail    <= 0;
 				new_we   <= 0;
 				new_rd   <= 0;
 				state    <= STATE_OPEN_1;
@@ -253,6 +256,7 @@ always @(posedge clk_sdram) begin
 			state       <= STATE_IDLE_5;
 			command     <= CMD_WRITE;
 			SDRAM_DQ    <= {new_data, new_data};
+			avail       <= 1;
 			ready       <= 1;
 		end
 
@@ -261,22 +265,22 @@ always @(posedge clk_sdram) begin
 		//-------------------------------------------------------------------
 		default: begin
 			state       <= STATE_STARTUP;
-			ready       <= 0;
+			avail       <= 0;
 			startup_refresh_count <= startup_refresh_max-sdram_startup_cycles;
 		end
 	endcase
 
 	if(init) begin  // Sync reset
 		state <= STATE_STARTUP;
-		ready <= 0;
+		avail <= 0;
 		startup_refresh_count <= startup_refresh_max-sdram_startup_cycles;
 	end
 
 	old_we <= we;
-	if(we & ~old_we) {new_we, new_data} <= {1'b1, din};
+	if(we & ~old_we) {ready, new_we, new_data} <= {1'b0, 1'b1, din};
 
 	old_rd <= rd;
-	if(rd & ~old_rd) new_rd <= 1'b1;
+	if(rd & ~old_rd) {ready, new_rd} <= {1'b0, 1'b1};
 end
 
 endmodule

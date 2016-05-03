@@ -105,30 +105,31 @@ end
 
 reg [4:0] turbo, turbo_req = 5'b11111;
 always @(posedge clk_sys) begin
-	reg f4, f5, f6;
-	{f6,f5,f4} <= Fn[6:4];
+	reg f4, f5, f6, f7, f8;
+	{f8,f7,f6,f5,f4} <= Fn[8:4];
 
 	if(!mod) begin
 		if(~f4 & Fn[4]) turbo_req <= 5'b11111;
 		if(~f5 & Fn[5]) turbo_req <= 5'b01111;
 		if(~f6 & Fn[6]) turbo_req <= 5'b00111;
+		if(~f7 & Fn[7]) turbo_req <= 5'b00011;
+		if(~f8 & Fn[8]) turbo_req <= 5'b00001;
 	end
 end
 
 always @(posedge clk_sys) begin
-	reg [5:0] timeout;
-	reg       old_cen;
+	reg [1:0] timeout;
 
-	if(timeout) timeout <= timeout + 1'd1;
-
-	old_cen <= cpu_n;
-	if(old_cen & ~cpu_n) begin
+	if(cpu_n) begin
+		if(timeout) timeout <= timeout + 1'd1;
 		if(turbo != turbo_req) begin
 			cpu_en  <= 0;
 			timeout <= 1;
 			turbo   <= turbo_req;
-		end else if(!cpu_en && !timeout) begin
+		end else if(!cpu_en && !timeout && ram_ready) begin
 			cpu_en  <= 1;
+		end else if(!turbo[4:2] & !ram_ready) begin // for >14MHz turbo
+			cpu_en  <= 0;
 		end
 	end
 end
@@ -252,6 +253,7 @@ reg   [7:0] ram_din;
 reg         ram_we;
 reg         ram_rd;
 wire  [7:0] ram_dout;
+wire        ram_ready;
 
 always_comb begin
 	casex({dma, tape_req, fdd_read, ext_ram, addr[15:14]})
@@ -293,7 +295,8 @@ sram ram
 	.din (ram_din),
 	.addr(ram_addr),
 	.we(ram_we),
-	.rd(ram_rd)
+	.rd(ram_rd),
+	.ready(ram_ready)
 );
 
 wire vram_we = (ram_addr[24:16] == 1) & ram_addr[14] & ~ram_addr[13];
