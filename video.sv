@@ -23,42 +23,44 @@
 
 module video
 (
-    input CLK,			        // 14MHz master clock
-	 
-	 // CPU interfacing
-	 output        clk_cpu,	  // CLK to CPU
-    input  [15:0] addr,
-    input         nMREQ,
-    input         nIORQ,
-    input         nRFSH,
-	 output        nINT,
-	 
-	 // VRAM interfacing
-    output [12:0] vram_addr,
-	 input   [7:0] vram_dout,
-	 output  [7:0] port_ff,
-	 
-	 // Misc. signals
-    input         mZX,
-    input         m128,
-	 input   [2:0] page_ram,
-    input   [2:0] border,
-	 input         scandoubler_disable,
+	input         clk_sys,	// master clock
+	input         ce_7mp,
+	input         ce_7mn,
+	output reg    ce_cpu_sp,
+	output reg    ce_cpu_sn,
 
-    // OSD IO interface
-    input         SPI_SCK,
-    input         SPI_SS3,
-    input         SPI_DI,
+	// CPU interfacing
+	input  [15:0] addr,
+	input         nMREQ,
+	input         nIORQ,
+	input         nRFSH,
+	output        nINT,
 
-    // Video outputs
-    output  [5:0] VGA_R,
-    output  [5:0] VGA_G,
-    output  [5:0] VGA_B,
-    output        VGA_VS,
-    output        VGA_HS
+	// VRAM interfacing
+	output [12:0] vram_addr,
+	input   [7:0] vram_dout,
+	output  [7:0] port_ff,
+
+	// Misc. signals
+	input         mZX,
+	input         m128,
+	input   [2:0] page_ram,
+	input   [2:0] border_color,
+	input         scandoubler_disable,
+
+	// OSD IO interface
+	input         SPI_SCK,
+	input         SPI_SS3,
+	input         SPI_DI,
+
+	// Video outputs
+	output  [5:0] VGA_R,
+	output  [5:0] VGA_G,
+	output  [5:0] VGA_B,
+	output        VGA_VS,
+	output        VGA_HS
 );
 
-assign clk_cpu   = ~CPUClk;
 assign vram_addr = vaddr;
 assign nINT      = ~INT;
 assign port_ff   = mZX ? ff_data : 8'hFF;
@@ -68,10 +70,10 @@ wire  [5:0] VGA_Gs, VGA_Gd;
 wire  [5:0] VGA_Bs, VGA_Bd;
 wire        hsyncd, vsyncd;
 
-osd osd 
+osd #(10'd10, 10'd0, 3'd4) osd
 (
 	.*,
-	.clk_pix(clk7),
+	.ce_pix(ce_7mp),
 	.VGA_Rx({R, R, I & R, I & R, I & R, I & R}),
 	.VGA_Gx({G, G, I & G, I & G, I & G, I & G}),
 	.VGA_Bx({B, B, I & B, I & B, I & B, I & B}),
@@ -84,7 +86,9 @@ osd osd
 
 scandoubler scandoubler 
 (
-	.clk_x2(CLK),
+	.clk_sys(clk_sys),
+	.ce_x2(ce_7mp | ce_7mn),
+	.ce_x1(ce_7mp),
 
 	.scanlines(0),
 
@@ -106,18 +110,76 @@ assign {VGA_R,  VGA_G,  VGA_B,  VGA_VS,  VGA_HS          } = scandoubler_disable
        {VGA_Rd, VGA_Gd, VGA_Bd, ~vsyncd, ~hsyncd         };
 
 // Pixel clock
-reg clk7 = 0;
-always @(posedge CLK) clk7 <= !clk7;
-
 reg [8:0] hc = 0;
 reg [8:0] vc = 0;
-always @(posedge clk7) begin
-	if (hc==((mZX && m128) ? 455 : 447)) begin
-		hc <= 0;
-		if (vc == (!mZX ? 319 : m128 ? 310 : 311)) vc <= 0;
-			else vc <= vc + 1'd1;
-	end else begin
-		hc <= hc + 1'd1;
+always @(posedge clk_sys) begin
+	if(ce_7mp) begin
+		if (hc==((mZX && m128) ? 455 : 447)) begin
+			hc <= 0;
+			if (vc == (!mZX ? 319 : m128 ? 310 : 311)) begin 
+				vc <= 0;
+				FlashCnt <= FlashCnt + 1'd1;
+			end else begin
+				vc <= vc + 1'd1;
+			end
+		end else begin
+			hc <= hc + 1'd1;
+		end
+	end
+	if(ce_7mn) begin
+		if(!mZX) begin
+			if (hc == 312) HBlank <= 1;
+				else if (hc == 420) HBlank <= 0;
+			if (hc == 338) HSync <= 1;
+				else if (hc == 370) HSync <= 0;
+		end else if(m128) begin
+			if (hc == 312) HBlank <= 1;
+				else if (hc == 424) HBlank <= 0;
+			if (hc == 340) HSync <= 1;         //ULA 6C
+				else if (hc == 372) HSync <= 0; //ULA 6C
+		end else begin
+			if (hc == 312) HBlank <= 1;
+				else if (hc == 416) HBlank <= 0;
+			if (hc == 336) HSync <= 1;         //ULA 5C
+				else if (hc == 368) HSync <= 0; //ULA 5C
+		end
+
+		if(mZX) begin
+			if(vc == 240) VSync <= 1;
+				else if (vc == 244) VSync <= 0;
+		end else begin
+			if(vc == 248) VSync <= 1;
+				else if (vc == 256) VSync <= 0;
+		end
+
+		if( mZX && (vc == 248) && (hc == (m128 ? 6 : 2))) INT <= 1;
+		if(!mZX && (vc == 239) && (hc == 324)) INT <= 1;
+
+		if(INT)  INTCnt <= INTCnt + 1'd1;
+		if(!INTCnt) INT <= 0;
+
+		if ((hc[3:0] == 4) || (hc[3:0] == 12)) begin
+			SRegister <= bits;
+			AttrOut <= VidEN ? attr : {2'b00,border_color,border_color};
+		end else begin
+			SRegister <= {SRegister[6:0],1'b0};
+		end
+
+		//1T update for border in Pentagon mode
+		if(!mZX & ((hc<12) | (hc>267) | (vc>=192))) AttrOut <= {2'b00,border_color,border_color};
+
+		if(hc[3]) VidEN <= ~Border;
+	
+		if(!Border) begin
+			case(hc[3:0])
+				8,12: vaddr <= {vc[7:6],vc[2:0],vc[5:3],hc[7:4], hc[2]};
+				9,13: begin bits <= vram_dout; ff_data <= vram_dout; end
+				10,14: vaddr <= {3'b110,vc[7:3],hc[7:4],hc[2]};
+				11,15: begin attr <= vram_dout; ff_data <= vram_dout; end
+			endcase
+		end
+
+		if (hc[3:0] == 1) ff_data <= 255;
 	end
 end
 
@@ -140,87 +202,39 @@ reg        VidEN = 0;
 reg  [7:0] bits;
 reg  [7:0] attr;
 
-always @(negedge clk7) begin
-
-	if(!mZX) begin
-		if (hc == 312) HBlank <= 1;
-			else if (hc == 420) HBlank <= 0;
-		if (hc == 340) HSync <= 1;
-			else if (hc == 372) HSync <= 0;
-	end else if(m128) begin
-		if (hc == 312) HBlank <= 1;
-			else if (hc == 424) HBlank <= 0;
-		if (hc == 340) HSync <= 1;         //ULA 6C
-			else if (hc == 372) HSync <= 0; //ULA 6C
-	end else begin
-		if (hc == 312) HBlank <= 1;
-			else if (hc == 416) HBlank <= 0;
-		if (hc == 336) HSync <= 1;         //ULA 5C
-			else if (hc == 368) HSync <= 0; //ULA 5C
-	end
-
-	if(mZX) begin
-		if(vc == 240) VSync <= 1;
-			else if (vc == 244) VSync <= 0;
-	end else begin
-		if(vc == 248) VSync <= 1;
-			else if (vc == 256) VSync <= 0;
-	end
-
-	if( mZX && (vc == 248) && (hc == (m128 ? 6 : 2))) INT <= 1;
-	if(!mZX && (vc == 239) && (hc == 324)) INT <= 1;
-
-	if(INT)  INTCnt <= INTCnt + 1'd1;
-	if(!INTCnt) INT <= 0;
-
-	if ((hc[3:0] == 4) || (hc[3:0] == 12)) begin
-		SRegister <= bits;
-		AttrOut <= VidEN ? attr : {2'b00,border,border};
-	end else begin
-		SRegister <= {SRegister[6:0],1'b0};
-	end
-
-	//1T update for border in Pentagon mode
-	if(!mZX & ((hc<12) | (hc>267) | (vc>=192))) AttrOut <= {2'b00,border,border};
-
-	if(hc[3]) VidEN <= ~Border;
-	
-	if(!Border) begin
-		case(hc[3:0])
-			  8,12: vaddr <= {vc[7:6],vc[2:0],vc[5:3],hc[7:4], hc[2]};
-			  9,13: begin bits <= vram_dout; ff_data <= vram_dout; end
-			 10,14: vaddr <= {3'b110,vc[7:3],hc[7:4],hc[2]};
-			 11,15: begin attr <= vram_dout; ff_data <= vram_dout; end
-		endcase
-	end
-
-	if (hc[3:0] == 1) ff_data <= 255;
-end
-
-always @(posedge VSync) FlashCnt <= FlashCnt + 1'd1;
-
 wire I,G,R,B;
 wire Pixel = SRegister[7] ^ (AttrOut[7] & FlashCnt[4]);
 assign {I,G,R,B} = (HBlank || VSync) ? 4'b0000 : Pixel ? {AttrOut[6],AttrOut[2:0]} : {AttrOut[6],AttrOut[5:3]};
 
-//T80 has incorrect nIORQ signal activated at T1 instead of T2.
-reg nIORQ_T2;
-always @(posedge CPUClk) nIORQ_T2 <= nIORQ;
+///////////////////////////////////////////////////////////////////////////////
 
+reg  nIORQ_T2; //T80 has incorrect nIORQ signal activated at T1 instead of T2.
 reg  CPUClk;
 reg  ioreqtw3;
 reg  mreqt23;
-wire ioreq_n  = addr[0] | nIORQ_T2 | nIORQ;
 
+wire ioreq_n    = addr[0] | nIORQ_T2 | nIORQ;
 wire ulaContend = (hc[2] | hc[3]) & ~Border & CPUClk & ioreqtw3;
 wire memContend = nRFSH & ioreq_n & mreqt23 & ((addr[15:14] == 2'b01) | (m128 & (addr[15:14] == 2'b11) & page_ram[0]));
 wire ioContend  = ~ioreq_n;
+wire next_clk   = ~hc[0] | (mZX & ulaContend & (memContend | ioContend));
 
-always @(posedge clk7) CPUClk <= ~hc[0] | (mZX & ulaContend & (memContend | ioContend));
+always @(negedge clk_sys) begin
+	ce_cpu_sp <= 0;
+	ce_cpu_sn <= 0;
+	if(ce_7mp) begin
+		CPUClk <= next_clk;
 
-always @(posedge CPUClk) begin
-	ioreqtw3 <= ioreq_n;
-	mreqt23  <= nMREQ;
+		if(~CPUClk &  next_clk) ce_cpu_sp <= 1;
+		if( CPUClk & ~next_clk) ce_cpu_sn <= 1;
+
+		if(~CPUClk &  next_clk) begin
+			ioreqtw3 <= ioreq_n;
+			mreqt23  <= nMREQ;
+			nIORQ_T2 <= nIORQ;
+		end
+	end
 end
+
 
 endmodule

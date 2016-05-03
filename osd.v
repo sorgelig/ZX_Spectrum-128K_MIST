@@ -4,7 +4,8 @@
 module osd (
 	// OSDs pixel clock, should be synchronous to cores pixel clock to
 	// avoid jitter.
-	input        clk_pix,
+	input        clk_sys,
+	input        ce_pix,
 
 	// SPI interface
 	input        SPI_SCK,
@@ -91,43 +92,45 @@ reg  [9:0] vs_low, vs_high;
 wire       vs_pol = vs_high < vs_low;
 wire [9:0] dsp_height = vs_pol ? vs_low : vs_high;
 
-always @(posedge clk_pix) begin
+always @(posedge clk_sys) begin
 	reg hsD, hsD2;
 	reg vsD, vsD2;
 
-	// bring hsync into local clock domain
-	hsD <= OSD_HS;
-	hsD2 <= hsD;
+	if(ce_pix) begin
+		// bring hsync into local clock domain
+		hsD <= OSD_HS;
+		hsD2 <= hsD;
 
-	// falling edge of OSD_HS
-	if(!hsD && hsD2) begin	
-		h_cnt <= 0;
-		hs_high <= h_cnt;
+		// falling edge of OSD_HS
+		if(!hsD && hsD2) begin	
+			h_cnt <= 0;
+			hs_high <= h_cnt;
+		end
+
+		// rising edge of OSD_HS
+		else if(hsD && !hsD2) begin	
+			h_cnt <= 0;
+			hs_low <= h_cnt;
+			v_cnt <= v_cnt + 1'd1;
+		end else begin
+			h_cnt <= h_cnt + 1'd1;
+		end
+
+		vsD <= OSD_VS;
+		vsD2 <= vsD;
+
+		// falling edge of OSD_VS
+		if(!vsD && vsD2) begin	
+			v_cnt <= 0;
+			vs_high <= v_cnt;
+		end
+
+		// rising edge of OSD_VS
+		else if(vsD && !vsD2) begin	
+			v_cnt <= 0;
+			vs_low <= v_cnt;
+		end
 	end
-
-	// rising edge of OSD_HS
-	else if(hsD && !hsD2) begin	
-		h_cnt <= 0;
-		hs_low <= h_cnt;
-		v_cnt <= v_cnt + 1'd1;
-	end else begin
-		h_cnt <= h_cnt + 1'd1;
-	end
-
-	vsD <= OSD_VS;
-	vsD2 <= vsD;
-
-	// falling edge of OSD_VS
-	if(!vsD && vsD2) begin	
-		v_cnt <= 0;
-		vs_high <= v_cnt;
-	end
-
-	// rising edge of OSD_VS
-	else if(vsD && !vsD2) begin	
-		v_cnt <= 0;
-		vs_low <= v_cnt;
-	end 
 end
 
 // area in which OSD is being displayed
@@ -143,13 +146,12 @@ wire osd_de = osd_enable &&
               (OSD_VS != vs_pol) && (v_cnt >= v_osd_start) && (v_cnt < v_osd_end);
 
 reg  [7:0] osd_byte; 
-always @(posedge clk_pix) osd_byte <= osd_buffer[{osd_vcnt[6:4], osd_hcnt[7:0]}];
+always @(posedge clk_sys) if(ce_pix) osd_byte <= osd_buffer[{osd_vcnt[6:4], osd_hcnt[7:0]}];
 
 wire osd_pixel = osd_byte[osd_vcnt[3:1]];
-wire [2:0] osd_color = OSD_COLOR;
 
-assign VGA_R = !osd_de ? VGA_Rx : {osd_pixel, osd_pixel, osd_color[2], VGA_Rx[5:3]};
-assign VGA_G = !osd_de ? VGA_Gx : {osd_pixel, osd_pixel, osd_color[1], VGA_Gx[5:3]};
-assign VGA_B = !osd_de ? VGA_Bx : {osd_pixel, osd_pixel, osd_color[0], VGA_Bx[5:3]};
+assign VGA_R = !osd_de ? VGA_Rx : {osd_pixel, osd_pixel, OSD_COLOR[2], VGA_Rx[5:3]};
+assign VGA_G = !osd_de ? VGA_Gx : {osd_pixel, osd_pixel, OSD_COLOR[1], VGA_Gx[5:3]};
+assign VGA_B = !osd_de ? VGA_Bx : {osd_pixel, osd_pixel, OSD_COLOR[0], VGA_Bx[5:3]};
 
 endmodule
