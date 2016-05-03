@@ -17,8 +17,8 @@
 # -------------------------------------------------------------------------- #
 #
 # Quartus II 64-Bit
-# Version 13.1.4 Build 182 03/12/2014 SJ Web Edition
-# Date created = 08:30:59  December 07, 2015
+# Version 13.1.4 Build 182 03/12/2014 SJ Full Version
+# Date created = 01:27:30  May 03, 2016
 #
 # -------------------------------------------------------------------------- #
 #
@@ -44,6 +44,30 @@ set_global_assignment -name PROJECT_CREATION_TIME_DATE "21:40:24  MAY 17, 2014"
 set_global_assignment -name LAST_QUARTUS_VERSION 13.1
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
+set_global_assignment -name SMART_RECOMPILE ON
+set_global_assignment -name FLOW_ENABLE_IO_ASSIGNMENT_ANALYSIS ON
+set_global_assignment -name VHDL_FILE t80/T80pa.vhd
+set_global_assignment -name VHDL_FILE t80/T80_Reg.vhd
+set_global_assignment -name VHDL_FILE t80/T80_Pack.vhd
+set_global_assignment -name VHDL_FILE t80/T80_MCode.vhd
+set_global_assignment -name VHDL_FILE t80/T80_ALU.vhd
+set_global_assignment -name VHDL_FILE t80/T80.vhd
+set_global_assignment -name VERILOG_FILE pll.v
+set_global_assignment -name VERILOG_FILE sram.v
+set_global_assignment -name SYSTEMVERILOG_FILE ym2149.sv
+set_global_assignment -name VERILOG_FILE sigma_delta_dac.v
+set_global_assignment -name SYSTEMVERILOG_FILE tape.sv
+set_global_assignment -name VERILOG_FILE keyboard.v
+set_global_assignment -name VERILOG_FILE scandoubler.v
+set_global_assignment -name VERILOG_FILE osd.v
+set_global_assignment -name VERILOG_FILE vram.v
+set_global_assignment -name SYSTEMVERILOG_FILE video.sv
+set_global_assignment -name VERILOG_FILE sd_card.v
+set_global_assignment -name VERILOG_FILE divmmc.v
+set_global_assignment -name VERILOG_FILE wd1793.v
+set_global_assignment -name VERILOG_FILE mist_io.v
+set_global_assignment -name SDC_FILE zxspectrum.sdc
+set_global_assignment -name SYSTEMVERILOG_FILE zxspectrum.sv
 
 # Pin & Location Assignments
 # ==========================
@@ -71,14 +95,11 @@ set_location_assignment PIN_136 -to VGA_VS
 set_location_assignment PIN_119 -to VGA_HS
 set_location_assignment PIN_65 -to AUDIO_L
 set_location_assignment PIN_80 -to AUDIO_R
-set_location_assignment PIN_46 -to UART_TX
-set_location_assignment PIN_31 -to UART_RX
 set_location_assignment PIN_105 -to SPI_DO
 set_location_assignment PIN_88 -to SPI_DI
 set_location_assignment PIN_126 -to SPI_SCK
 set_location_assignment PIN_127 -to SPI_SS2
 set_location_assignment PIN_91 -to SPI_SS3
-set_location_assignment PIN_90 -to SPI_SS4
 set_location_assignment PIN_13 -to CONF_DATA0
 set_location_assignment PIN_49 -to SDRAM_A[0]
 set_location_assignment PIN_44 -to SDRAM_A[1]
@@ -119,6 +140,7 @@ set_location_assignment PIN_66 -to SDRAM_nWE
 set_location_assignment PIN_59 -to SDRAM_nCS
 set_location_assignment PIN_33 -to SDRAM_CKE
 set_location_assignment PIN_43 -to SDRAM_CLK
+set_location_assignment PLL_1 -to "pll:pll|altpll:altpll_component"
 
 # Classic Timing Assignments
 # ==========================
@@ -133,6 +155,7 @@ set_global_assignment -name TOP_LEVEL_ENTITY zxspectrum
 set_global_assignment -name DEVICE_FILTER_PACKAGE TQFP
 set_global_assignment -name DEVICE_FILTER_PIN_COUNT 144
 set_global_assignment -name SYNTH_TIMING_DRIVEN_SYNTHESIS ON
+set_global_assignment -name SAVE_DISK_SPACE OFF
 
 # Fitter Assignments
 # ==================
@@ -158,9 +181,6 @@ set_global_assignment -name OPTIMIZE_HOLD_TIMING "ALL PATHS"
 set_global_assignment -name OPTIMIZE_MULTI_CORNER_TIMING ON
 set_global_assignment -name FITTER_EFFORT "AUTO FIT"
 
-# EDA Netlist Writer Assignments
-# ==============================
-
 # Assembler Assignments
 # =====================
 set_global_assignment -name GENERATE_RBF_FILE ON
@@ -182,15 +202,6 @@ set_global_assignment -name OUTPUT_IO_TIMING_NEAR_END_VMEAS "HALF VCCIO" -rise
 set_global_assignment -name OUTPUT_IO_TIMING_NEAR_END_VMEAS "HALF VCCIO" -fall
 set_global_assignment -name OUTPUT_IO_TIMING_FAR_END_VMEAS "HALF SIGNAL SWING" -rise
 set_global_assignment -name OUTPUT_IO_TIMING_FAR_END_VMEAS "HALF SIGNAL SWING" -fall
-
-# start EDA_TOOL_SETTINGS(eda_simulation)
-# ---------------------------------------
-
-# EDA Netlist Writer Assignments
-# ==============================
-
-# end EDA_TOOL_SETTINGS(eda_simulation)
-# -------------------------------------
 
 # ------------------------
 # start ENTITY(zxspectrum)
@@ -250,22 +261,6 @@ set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to SDRAM_DQ[12]
 set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to SDRAM_DQ[13]
 set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to SDRAM_DQ[14]
 set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to SDRAM_DQ[15]
-set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[0]
-set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[1]
-set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[2]
-set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[3]
-set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[4]
-set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[5]
-set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[6]
-set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[7]
-set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[8]
-set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[9]
-set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[10]
-set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[11]
-set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[12]
-set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[13]
-set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[14]
-set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[15]
 
 # Fitter Assignments
 # ==================
@@ -307,7 +302,7 @@ set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to SDRAM_nCAS
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to SDRAM_nWE
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to SDRAM_nCS
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to SDRAM_CKE
-set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to SDRAM_CLK
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to SDRAM_CLK
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to VGA_R[5]
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to VGA_R[4]
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to VGA_R[3]
@@ -326,39 +321,26 @@ set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to VGA_B[3]
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to VGA_B[2]
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to VGA_B[1]
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to VGA_B[0]
+set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to VGA_HS
+set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to VGA_VS
+set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to LED
+set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to AUDIO_L
+set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to AUDIO_R
+set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to SPI_DO
+set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to CONF_DATA0
 
-# end ENTITY(zxspectrum)
-# ----------------------
-set_global_assignment -name SMART_RECOMPILE ON
-set_global_assignment -name SAVE_DISK_SPACE OFF
-set_global_assignment -name FLOW_ENABLE_IO_ASSIGNMENT_ANALYSIS ON
+# start DESIGN_PARTITION(Top)
+# ---------------------------
 
+# Incremental Compilation Assignments
+# ===================================
 set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
-set_global_assignment -name VHDL_FILE t80/T80a.vhd
-set_global_assignment -name VHDL_FILE t80/T80_Reg.vhd
-set_global_assignment -name VHDL_FILE t80/T80_Pack.vhd
-set_global_assignment -name VHDL_FILE t80/T80_MCode.vhd
-set_global_assignment -name VHDL_FILE t80/T80_ALU.vhd
-set_global_assignment -name VHDL_FILE t80/T80.vhd
-set_global_assignment -name SYSTEMVERILOG_FILE ym2149.sv
-set_global_assignment -name VERILOG_FILE sigma_delta_dac.v
-set_global_assignment -name VERILOG_FILE ps2_intf.v
-set_global_assignment -name VERILOG_FILE pll.v
-set_global_assignment -name VERILOG_FILE keyboard.v
-set_global_assignment -name VERILOG_FILE scandoubler.v
-set_global_assignment -name VERILOG_FILE osd.v
-set_global_assignment -name SYSTEMVERILOG_FILE video.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ula.sv
-set_global_assignment -name VERILOG_FILE vram.v
-set_global_assignment -name VERILOG_FILE sram.v
-set_global_assignment -name VERILOG_FILE spi.v
-set_global_assignment -name VERILOG_FILE sd_card.v
-set_global_assignment -name VERILOG_FILE wd1793.v
-set_global_assignment -name VERILOG_FILE divmmc.v
-set_global_assignment -name VERILOG_FILE user_io.v
-set_global_assignment -name SYSTEMVERILOG_FILE tape.sv
-set_global_assignment -name VERILOG_FILE data_io.v
-set_global_assignment -name SYSTEMVERILOG_FILE zxspectrum.sv
+
+# end DESIGN_PARTITION(Top)
+# -------------------------
+
+# end ENTITY(zxspectrum)
+# ----------------------
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
