@@ -86,14 +86,7 @@ package T80_Pack is
 		TS			: out std_logic_vector(2 downto 0);
 		IntCycle_n	: out std_logic;
 		IntE		: out std_logic;
-		Stop		: out std_logic;
-
-		SavePC      : out std_logic_vector(15 downto 0);
-		SaveINT     : out std_logic_vector(7 downto 0);
-		RestorePC   : in std_logic_vector(15 downto 0);
-		RestoreINT  : in std_logic_vector(7 downto 0);
-		
-		RestorePC_n : in std_logic
+		Stop		: out std_logic
 	);
 	end component;
 

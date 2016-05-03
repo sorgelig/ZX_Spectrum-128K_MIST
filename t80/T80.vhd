@@ -108,14 +108,7 @@ entity T80 is
 		TS			: out std_logic_vector(2 downto 0);
 		IntCycle_n	: out std_logic;
 		IntE		: out std_logic;
-		Stop		: out std_logic;
-		
-		SavePC      : out std_logic_vector(15 downto 0);
-		SaveINT     : out std_logic_vector(7 downto 0);
-		RestorePC   : in std_logic_vector(15 downto 0);
-		RestoreINT  : in std_logic_vector(7 downto 0);
-		
-		RestorePC_n : in std_logic
+		Stop		: out std_logic
 	);
 end T80;
 
@@ -352,7 +345,7 @@ begin
 		DI_Reg when Save_ALU_r = '0' else
 		ALU_Q;
 
-	process (RESET_n, RestorePC_n, CLK_n)
+	process (RESET_n, CLK_n)
 	begin
 			
 		if CLK_n'event and CLK_n = '1' then
@@ -387,11 +380,6 @@ begin
 				PreserveC_r <= '0';
 				XY_Ind <= '0';
 
-			elsif RestorePC_n = '0' then
-				PC <= unsigned( RestorePC );
-				A <= RestorePC;
-				IStatus <= RestoreInt(1 downto 0);
-				
 			elsif ClkEn = '1' then
 
 			ALU_Op_r <= "0000";
@@ -966,10 +954,6 @@ begin
 	IORQ <= IORQ_i;
 	Stop <= I_DJNZ;
 
-	SavePC <= std_logic_vector( PC );
-	SaveINT <= "0000" & IntE_FF2 & IntE_FF1 & IStatus when MCycle = "001" and TState = "001" and Prefix = "00" and IntCycle = '0' and NMICycle = '0' else
-			"1111" & IntE_FF2 & IntE_FF1 & IStatus;	
-	
 -------------------------------------------------------------------------
 --
 -- Syncronise inputs
@@ -1005,7 +989,7 @@ begin
 -- Main state machine
 --
 -------------------------------------------------------------------------
-	process (RESET_n, RestorePC_n, CLK_n)
+	process (RESET_n, CLK_n)
 	begin
 
 		if CLK_n'event and CLK_n = '1' then
@@ -1024,21 +1008,6 @@ begin
 				Auto_Wait_t2 <= '0';
 				M1_n <= '1';
 			
-			elsif RestorePC_n = '0' then
-				MCycle <= "001";
-				TState <= "001";
-				NMICycle <= '0';
-				IntCycle <= '0';
-				IntE_FF1 <= RestoreINT(2);
-				IntE_FF2 <= RestoreINT(3);
-
-				Pre_XY_F_M <= "000";
-				Halt_FF <= '0';
-				BusAck <= '0';
-				No_BTR <= '0';
-				Auto_Wait_t1 <= '0';
-				Auto_Wait_t2 <= '0';
-
 			elsif CEN = '1' then
 				if T_Res = '1' then
 					Auto_Wait_t1 <= '0';
