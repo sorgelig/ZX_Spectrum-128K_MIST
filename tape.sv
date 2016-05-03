@@ -30,8 +30,8 @@
 
 module tape 
 (
-	input         reset,
-	input         clk,
+	input         clk_sys,
+	input         ce,
 
 	input         std_load,
 	input         std_wait,
@@ -42,10 +42,11 @@ module tape
 	input         prev,
 	input         next,
 	output reg    active,
+	output reg    available,
 
-	input         ready,
 	input         tap_mode,
-	input  [24:0] size,
+	input  [24:0] tape_size,
+	input         tape_ready,
 
 	output reg    audio_out,
 
@@ -63,16 +64,13 @@ assign addr = size - read_cnt;
 assign dout = data;
 
 reg  [24:0] read_cnt;
-reg         read_ready;
+reg         read_done;
 reg   [7:0] data;
-
 reg         rd_req;
-reg   [7:0] saved_data;
-always @(negedge rd_en) saved_data <= din;
-always @(posedge rd_en) rd_req <= ~read_ready;
+reg  [24:0] size;
 
-always @(posedge clk) begin
-	reg old_pause, old_prev, old_next, old_ready, old_en;
+always @(posedge clk_sys) begin
+	reg old_pause, old_prev, old_next, old_ready, old_rden;
 
 	reg [24:0] blk_list[32];
 	reg        play_pause;
@@ -92,12 +90,37 @@ always @(posedge clk) begin
 	reg        auto_blk;
 	reg  [4:0] blk_num;
 
-	old_ready <= ready;
-	active <= !play_pause && read_cnt;
+	old_rden <= rd_en;
+	
+	if(old_rden & ~rd_en) begin
+		if(rd_req) begin
+			if(~read_done) begin
+				din_r <= din;
+				read_done <= 1;
+			end
+			rd_req <= 0;
+		end else begin
+			rd_req <= ~read_done;
+		end
+	end
 
-	if(reset | ~ready) begin
+	active <= !play_pause && read_cnt;
+	available <= (read_cnt != 0);
+
+	old_ready <= tape_ready;
+	if(tape_ready & ~old_ready) begin
+		read_cnt <= tape_size;
+		size <= tape_size;
+		blk_list[0] <= tape_size;
+		if(!tap_mode && tape_size) begin
+			hdrsz <= 32;
+			read_done <= 0;
+		end
+	end
+
+	if(~tape_ready) begin
 		read_cnt <= 0;
-		read_ready <= 1;
+		read_done <= 1;
 		play_pause <= 1;
 		hdrsz <= 0;
 		state <= 0;
@@ -108,15 +131,8 @@ always @(posedge clk) begin
 		auto_blk <= 0;
 		blk_list <= '{default:0};
 		blk_num <= 0;
-	end else begin
-
-		old_en <= rd_en;
-		if(!read_ready) begin
-			if(old_en & ~rd_en & rd_req) begin
-				din_r <= saved_data;
-				read_ready <= 1;
-			end
-		end
+		rd_req <= 0;
+	end else if(ce) begin
 
 		if(start & ~auto_blk) play_pause <= 0;
 
@@ -126,14 +142,12 @@ always @(posedge clk) begin
 			auto_blk <= ~play_pause;
 		end
 
-		if(ready & ~old_ready) begin
-			read_cnt <= size;
-			blk_list[0] <= size;
-		end
-
 		if(tap_mode) begin
-			if(hdrsz && read_ready) begin
-				read_ready <= 0;
+
+			// TAP file
+
+			if(hdrsz && read_done) begin
+				read_done <= 0;
 				if(hdrsz == 2) blocksz[7:0] <= din_r;
 					else blocksz[15:8] <= din_r;
 				hdrsz <= hdrsz - 1'b1;
@@ -148,14 +162,14 @@ always @(posedge clk) begin
 					case(state)
 						0: begin
 								hdrsz <= 2;
-								read_ready <= 0;
+								read_done <= 0;
 								pilot <= std_load ? 16'd20 : 16'd3220;
 								timeout <= 3500000;
 								state <= state + 1'b1;
 							end
 						1: begin
 								if(skip) begin
-									if(!hdrsz && read_ready) begin
+									if(!hdrsz && read_done) begin
 										blk_type <= din_r[7];
 										state <= 4;
 									end
@@ -185,8 +199,8 @@ always @(posedge clk) begin
 							end
 						4: begin
 								if(blocksz) begin
-									if(read_ready) begin
-										read_ready <= 0;
+									if(read_done) begin
+										read_done <= 0;
 										data <= din_r;
 										read_cnt <= read_cnt - 1'b1;
 										bitcnt <= 8;
@@ -271,15 +285,13 @@ always @(posedge clk) begin
 			end
 
 		end else begin
-			if(~old_ready & ready) begin
-				hdrsz <= 32;
-				read_ready <= 0;
-			end
 
-			if(hdrsz && read_ready) begin
+			// CSW file
+
+			if(hdrsz && read_done) begin
 				if(hdrsz == 7) freq[ 7:0] <= din_r;
 				if(hdrsz == 6) freq[15:8] <= din_r;
-				read_ready  <= 0;
+				read_done  <= 0;
 				read_cnt <= read_cnt - 1'd1;
 				hdrsz <= hdrsz - 1'd1;
 			end
@@ -287,7 +299,7 @@ always @(posedge clk) begin
 			if(!hdrsz && read_cnt && !play_pause) begin
 				if((bitcnt <= 1) || (reload32 != 0)) begin
 
-					if(read_ready) begin
+					if(read_done) begin
 						if(reload32 != 0) begin
 							bitcnt <= {din_r, bitcnt[31:8]};
 							reload32 <= reload32 - 1'd1;
@@ -298,7 +310,7 @@ always @(posedge clk) begin
 							audio_out <= ~audio_out;
 						end
 
-						read_ready <= 0;
+						read_done <= 0;
 						read_cnt <= read_cnt - 1'd1;
 					end
 				end else begin
@@ -320,7 +332,8 @@ endmodule
 module smart_tape
 (
 	input         reset,
-	input         clk,
+	input         clk_sys,
+	input         ce,
 
 	output reg    turbo,
 	input         pause,
@@ -329,66 +342,69 @@ module smart_tape
 	output        audio_out,
 	output        activity,
 
-	input         rd_en,
-	output        rd,
-	output [24:0] addr,
-	input   [7:0] din,
+	input         buff_rd_en,
+	output        buff_rd,
+	output [24:0] buff_addr,
+	input   [7:0] buff_din,
 
 	input         ioctl_download,
 	input  [24:0] ioctl_size,
 	input         tap_mode,
 
-	input  [15:0] cpu_addr,
-	input         cpu_m1,
+	input  [15:0] addr,
+	input         m1,
 	input         rom_en,
 	output        dout_en,
 	output  [7:0] dout
 );
 
 assign dout_en = tape_ld1 | tape_ld2;
-assign dout = tape_ld2 ? 8'h0 : tape_arr[cpu_addr - 16'h5CA];
-assign activity = act_cnt[20] ? act_cnt[19:12] > act_cnt[7:0] : act_cnt[19:12] <= act_cnt[7:0];
+assign dout = tape_ld2 ? 8'h0 : tape_arr[addr - 16'h5CA];
+assign activity = act_cnt[24] ? act_cnt[23:16] > act_cnt[7:0] : act_cnt[23:16] <= act_cnt[7:0];
 
 reg [7:0] tape_arr[14] = '{'h18, 'hFE, 'h2E, 'hFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 reg  byte_wait;
 reg  wait_for_tape;
 reg  tone_wait;
-wire tape_ld1 = ((cpu_addr >= 'h5CA) & (cpu_addr < 'h5D8) & rom_en & turbo);
-wire tape_ld2 = ((cpu_addr >= 'h56C) & (cpu_addr < 'h58F) & rom_en & turbo);
+wire tape_ld1 = ((addr >= 'h5CA) & (addr < 'h5D8) & rom_en & turbo);
+wire tape_ld2 = ((addr >= 'h56C) & (addr < 'h58F) & rom_en & turbo);
 
-always @(posedge cpu_m1) begin
-	tone_wait <= rom_en & (cpu_addr == 16'h5ED);
-	if((cpu_addr == 16'h556) & rom_en) {wait_for_tape, turbo} <= {1'b1, tape_allow_turbo & mode & (addr < size)};
-	if((cpu_addr < 16'h53F) | (cpu_addr >= 16'h605) | ~rom_en) {wait_for_tape, turbo} <= 2'b00;
+always @(posedge clk_sys) begin
+	reg old_m1;
 
-	if(tape_ld1 & (cpu_addr < 'h5CC)) begin
-		byte_wait <= 1;
-		tape_arr[3] <= tape_dout;
-		if(byte_ready) tape_arr[1] <= 0;
-	end else begin
-		byte_wait <= 0;
+	old_m1 <= m1;
+	if(m1 & ~old_m1) begin
+		tone_wait <= rom_en & (addr == 16'h5ED);
+		if((addr == 16'h556) & rom_en) {wait_for_tape, turbo} <= {1'b1, tape_allow_turbo & mode & available};
+		if((addr < 16'h53F) | (addr >= 16'h605) | ~rom_en) {wait_for_tape, turbo} <= 2'b00;
+
+		if(tape_ld1 & (addr < 'h5CC)) begin
+			byte_wait <= 1;
+			tape_arr[3] <= tape_dout;
+			if(byte_ready) tape_arr[1] <= 0;
+		end else begin
+			byte_wait <= 0;
+		end
+		if(!tape_ld1) tape_arr[1] <= 'hFE;
 	end
-	if(!tape_ld1) tape_arr[1] <= 'hFE;
 end
 
 reg [24:0] size;
 reg        tape_ready;
 reg        tape_allow_turbo;
 reg        mode;
-always @(posedge clk, posedge reset) begin
+always @(posedge clk_sys, posedge reset) begin
 	reg old_download;
 
 	if(reset) begin
 		mode <= 0;
 		tape_ready <= 0;
-		old_download  <= 0;
+		old_download <= 0;
 		tape_allow_turbo <= 0;
-		size <= 0;
 	end else begin
 		old_download <= ioctl_download;
-		if(old_download & !ioctl_download) begin
-			size <= ioctl_size;
+		if(old_download & ~ioctl_download) begin
 			tape_ready <= 1;
 			tape_allow_turbo <= ~wait_for_tape;
 			mode <= tap_mode;
@@ -400,34 +416,36 @@ end
 wire       active;
 wire       byte_ready;
 wire [7:0] tape_dout;
+wire       available;
 tape tape
 (
-	.clk(clk),
-	.reset(reset),
+	.clk_sys(clk_sys),
+	.ce(ce),
 
 	.audio_out(audio_out),
 	.pause(pause),
 	.prev(prev),
 	.next(next),
 	.active(active),
+	.available(available),
 
-	.ready(tape_ready),
 	.tap_mode(mode),
-	.size(size),
+	.tape_ready(tape_ready),
+	.tape_size(ioctl_size),
 
 	.std_load(turbo),
 	.std_wait(byte_wait),
 	.std_ready(byte_ready),
 
 	.start(tone_wait | turbo),
-	.rd_en(rd_en),
-	.rd(rd),
-	.addr(addr),
-	.din(din),
+	.rd_en(buff_rd_en),
+	.rd(buff_rd),
+	.addr(buff_addr),
+	.din(buff_din),
 	.dout(tape_dout)
 );
 
-reg [20:0] act_cnt;
-always @(posedge clk) if(active || ~((addr<size) ^ act_cnt[20]) || act_cnt[19:0]) act_cnt <= act_cnt + 1'd1;
+reg [24:0] act_cnt;
+always @(posedge clk_sys) if(active || ~(available ^ act_cnt[24]) || act_cnt[23:0]) act_cnt <= act_cnt + 1'd1;
 
 endmodule
