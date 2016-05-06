@@ -37,22 +37,19 @@ module sd_card
 
 	// config
 	input         allow_sdhc,
-	output reg    sd_conf_req = 1,
-	input   [7:0] sd_conf,
-	output		  sd_sdhc,
+	output reg    sd_conf = 1,
+	output reg    sd_sdhc,
 
-	// block level
 	output [31:0] sd_lba,
 	output reg    sd_rd,
 	output reg    sd_wr,
-	input			  sd_ack,
-	input			  sd_ack_conf,
+	input         sd_ack,
+	input         sd_ack_conf,
 
-	// byte level
-	output  [9:0] sd_addr,  // 512b data + 16b cid + 16b csd + 1b conf
-	input	  [7:0] sd_dout,
-	output  [7:0] sd_din,
-	output reg    sd_din_wr,
+	input   [8:0] sd_buff_addr,
+	input   [7:0] sd_buff_dout,
+	output  [7:0] sd_buff_din,
+	input         sd_buff_wr,
 
 	// SPI interface
 	input         spi_clk,
@@ -62,9 +59,6 @@ module sd_card
 );
 
 assign     sd_lba  = sd_sdhc ? lba : {9'd0, lba[31:9]};
-assign     sd_sdhc = allow_sdhc && sd_conf[0];
-assign     sd_addr = buffer_ptr;
-assign     sd_din  = buffer_dout;
 
 wire[31:0] OCR = { 1'b1, sd_sdhc, 30'h0 };  // bit30 = 1 -> high capaciry card (sdhc) // bit31 = 0 -> card power up finished
 wire [7:0] READ_DATA_TOKEN = 8'hfe;
@@ -86,9 +80,46 @@ localparam WR_STATE_RECV_CRC1  = 3'd4;
 localparam WR_STATE_SEND_DRESP = 3'd5;
 localparam WR_STATE_BUSY       = 3'd6;
 
+sdbuf buffer
+(
+	.clock(clk_sys),
+
+	.address_a(sd_buff_addr),
+	.data_a(sd_buff_dout),
+	.wren_a(sd_ack & sd_buff_wr),
+	.q_a(sd_buff_din),
+
+	.address_b(buffer_ptr),
+	.data_b(buffer_din),
+	.wren_b(buffer_wr),
+	.q_b(buffer_dout)
+);
+
+sdbuf conf
+(
+	.clock(clk_sys),
+
+	.address_a(sd_buff_addr),
+	.data_a(sd_buff_dout),
+	.wren_a(sd_ack_conf & sd_buff_wr),
+
+	.address_b(buffer_ptr),
+	.wren_b(0),
+	.q_b(config_dout)
+);
+
+always @(posedge clk_sys) begin
+	reg old_wr;
+	old_wr <= sd_buff_wr;
+	if(sd_ack_conf & ~old_wr & sd_buff_wr & (sd_buff_addr == 32)) sd_sdhc <= allow_sdhc & sd_buff_dout[0];
+end
+
 reg [31:0] lba;
-reg  [9:0] buffer_ptr;
-reg  [7:0] buffer_dout;
+reg  [8:0] buffer_ptr;
+reg  [7:0] buffer_din;
+wire [7:0] buffer_dout;
+wire [7:0] config_dout;
+reg        buffer_wr;
 
 always @(posedge clk_sys) begin
 	reg [1:0] read_state;
@@ -111,18 +142,18 @@ always @(posedge clk_sys) begin
 
 	if(write_prc) begin
 		write_prc <= write_prc + 1'b1;
-		if((write_prc < 3) & (buffer_ptr < 512)) sd_din_wr <= 1;
-		else if(write_prc < 5) sd_din_wr <= 0;
+		if(write_prc < 3) buffer_wr <= 1;
+		else if(write_prc < 5) buffer_wr <= 0;
 		else begin
 			buffer_ptr <= buffer_ptr + 1'b1;
 			write_prc <= 0;
 		end
-	end else sd_din_wr <= 0;
+	end else buffer_wr <= 0;
 
 	ack <= {ack[4:0], sd_ack};
 	if(ack[5:4] == 2'b10) io_ack <= 1;
 	if(ack[5:4] == 2'b01) {sd_rd,sd_wr} <= 0;
-	if(sd_ack_conf) sd_conf_req <= 0;
+	if(sd_ack_conf) sd_conf <= 0;
 
 	// cs is active low
 	if(spi_ss) begin
@@ -189,15 +220,14 @@ always @(posedge clk_sys) begin
 				if(bit_cnt == 7) begin
 					read_state <= RD_STATE_SEND_DATA;   // next: send data
 					buffer_ptr <= 0;
-					if(cmd == 'h49) buffer_ptr <= 528;
-					if(cmd == 'h4A) buffer_ptr <= 512;
+					if(cmd == 'h49) buffer_ptr <= 16;
 				end
 			end
 
 			// send data
 			RD_STATE_SEND_DATA: begin
 
-				spi_do <= sd_dout[~bit_cnt];
+				spi_do <= ((cmd == 'h49) | (cmd == 'h4A)) ? config_dout[~bit_cnt] : buffer_dout[~bit_cnt];
 
 				if(bit_cnt == 7) begin
 					// sent 512 sector data bytes?
@@ -336,7 +366,7 @@ always @(posedge clk_sys) begin
 				WR_STATE_RECV_DATA: begin
 					// push one byte into local buffer
 					write_prc  <= 1;
-					buffer_dout <= {sbuf, spi_di};
+					buffer_din <= {sbuf, spi_di};
 
 					// all bytes written?
 					if(buffer_ptr == 511) write_state <= WR_STATE_RECV_CRC0;
