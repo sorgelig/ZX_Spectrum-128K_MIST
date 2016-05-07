@@ -74,8 +74,6 @@ pll pll
 reg  ce_psg;  //1.75MHz
 reg  ce_7mp;
 reg  ce_7mn;
-reg  ce_13k;
-reg  clk_ps2; // ~13.5KHz
 
 reg  cpu_en;
 reg  ce_cpu_tp;
@@ -89,15 +87,13 @@ wire cpu_p = ~&turbo ? ce_cpu_tp : ce_cpu_sp;
 wire cpu_n = ~&turbo ? ce_cpu_tn : ce_cpu_sn;
 
 always @(negedge clk_sys) begin
-	reg [12:0] counter = 0;
+	reg [5:0] counter = 0;
 
 	counter <=  counter + 1'd1;
 
 	ce_7mp  <= !counter[3] & !counter[2:0];
 	ce_7mn  <=  counter[3] & !counter[2:0];
 	ce_psg  <= !counter[5:0];
-	ce_13k  <= !counter[12:0];
-	clk_ps2 <= !counter[12];
 
 	ce_cpu_tp <= !(counter & turbo);
 	ce_cpu_tn <= !((counter & turbo) ^ turbo ^ turbo[4:1]);
@@ -105,15 +101,15 @@ end
 
 reg [4:0] turbo, turbo_req = 5'b11111;
 always @(posedge clk_sys) begin
-	reg f4, f5, f6, f7, f8;
-	{f8,f7,f6,f5,f4} <= Fn[8:4];
+	reg [8:4] old_Fn;
+	old_Fn <= Fn[8:4];
 
 	if(!mod) begin
-		if(~f4 & Fn[4]) turbo_req <= 5'b11111;
-		if(~f5 & Fn[5]) turbo_req <= 5'b01111;
-		if(~f6 & Fn[6]) turbo_req <= 5'b00111;
-		if(~f7 & Fn[7]) turbo_req <= 5'b00011;
-		if(~f8 & Fn[8]) turbo_req <= 5'b00001;
+		if(~old_Fn[4] & Fn[4]) turbo_req <= 5'b11111;
+		if(~old_Fn[5] & Fn[5]) turbo_req <= 5'b01111;
+		if(~old_Fn[6] & Fn[6]) turbo_req <= 5'b00111;
+		if(~old_Fn[7] & Fn[7]) turbo_req <= 5'b00011;
+		if(~old_Fn[8] & Fn[8]) turbo_req <= 5'b00001;
 	end
 end
 
@@ -175,8 +171,6 @@ mist_io #(.STRLEN(100)) user_io
         "SPECTRUM;TRD;F1,TAP;F2,CSW;O3,Autoload ESXDOS,No,Yes;O4,Video Type,ZX,Pent;O5,Video Version,48k,128k"
 	),
 
-	.ps2_clk(clk_ps2),
-
 	// unused
 	.joystick_analog_0(),
 	.joystick_analog_1(),
@@ -199,14 +193,10 @@ wire        nRFSH;
 wire        nBUSACK;
 wire        nINT;
 wire        nBUSRQ = ~(ioctl_download | ioctl_erasing);
-wire        reset  = ~locked | buttons[1] | status[0] | esxRESET | cold_reset | warm_reset | test_reset;
-wire        cold_reset = (mod[1] & Fn[11]) || initRESET;
+wire        reset  = buttons[1] | status[0] | esxRESET | cold_reset | warm_reset | test_reset;
+wire        cold_reset = (mod[1] & Fn[11]) | (ioctl_download & !ioctl_index);
 wire        warm_reset =  mod[2] & Fn[11];
 wire        test_reset =  mod[0] & Fn[11];
-
-// wait for ROM loading
-integer initRESET = 15000;
-always @(posedge clk_sys) if(ce_13k && initRESET) initRESET <= initRESET - 1;
 
 T80pa cpu
 (
@@ -343,17 +333,10 @@ always @(posedge clk_sys) begin
 	reg old_we;
 	old_we <= ula_we;
 
-	if(reset) begin
-		border_color <= 0;
-		ear_out <= 0; 
-		mic_out <= 0;
-		old_we  <= 0;
-	end else begin
-		if(ula_we & ~old_we) begin
-			border_color <= cpu_dout[2:0];
-			ear_out <= cpu_dout[4]; 
-			mic_out <= cpu_dout[3];
-		end
+	if(ula_we & ~old_we) begin
+		border_color <= cpu_dout[2:0];
+		ear_out <= cpu_dout[4]; 
+		mic_out <= cpu_dout[3];
 	end
 end
 
@@ -382,7 +365,7 @@ ym2149 ym2149
 	.MODE(0)
 );
 
-sigma_delta_dac #(.MSBI(9)) dac_l
+sigma_delta_dac #(9) dac_l
 (
 	.CLK(clk_sys),
 	.RESET(reset),
@@ -390,7 +373,7 @@ sigma_delta_dac #(.MSBI(9)) dac_l
 	.DACout(AUDIO_L)
 );
 
-sigma_delta_dac #(.MSBI(9)) dac_r
+sigma_delta_dac #(9) dac_r
 (
 	.CLK(clk_sys),
 	.RESET(reset),
