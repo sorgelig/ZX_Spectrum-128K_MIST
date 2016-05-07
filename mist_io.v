@@ -26,9 +26,11 @@
 // Made module synchroneous with 2 clock domains: clk_sys and SPI_SCK
 //                                                           (Sorgelig)
 //
+// for synchronous projects default value for PS2DIV is fine for any frequency of system clock.
+// clk_ps2 = clk_sys/(PS2DIV*2)
 //
 
-module mist_io #(parameter STRLEN=0)
+module mist_io #(parameter STRLEN=0, parameter PS2DIV=20)
 (
 
 	// parameter STRLEN and the actual length of conf_str have to match
@@ -67,14 +69,13 @@ module mist_io #(parameter STRLEN=0)
 	output reg        sd_ack,
 	output reg        sd_ack_conf,
 
-	// SD byte level access
+	// SD byte level access. Signals for 2-PORT altsyncram.
 	output reg  [8:0] sd_buff_addr,
 	output reg  [7:0] sd_buff_dout,
 	input       [7:0] sd_buff_din,
 	output reg        sd_buff_wr,
-	
+
 	// ps2 keyboard emulation
-	input             ps2_clk,				  // 12-16khz provided by core
 	output            ps2_kbd_clk,
 	output reg        ps2_kbd_data,
 	output            ps2_mouse_clk,
@@ -261,6 +262,16 @@ end
 // 8 byte fifos to store ps2 bytes
 localparam PS2_FIFO_BITS = 3;
 
+reg clk_ps2;
+always @(negedge clk_sys) begin
+	integer cnt;
+	cnt <= cnt + 1'd1;
+	if(cnt == PS2DIV) begin
+		clk_ps2 <= ~clk_ps2;
+		cnt <= 0;
+	end
+end
+
 // keyboard
 reg [7:0] ps2_kbd_fifo [(2**PS2_FIFO_BITS)-1:0];
 reg [PS2_FIFO_BITS-1:0] ps2_kbd_wptr;
@@ -271,15 +282,15 @@ reg [3:0] ps2_kbd_tx_state;
 reg [7:0] ps2_kbd_tx_byte;
 reg ps2_kbd_parity;
 
-assign ps2_kbd_clk = ps2_clk || (ps2_kbd_tx_state == 0);
+assign ps2_kbd_clk = clk_ps2 || (ps2_kbd_tx_state == 0);
 
 // ps2 transmitter
 // Takes a byte from the FIFO and sends it in a ps2 compliant serial format.
 reg ps2_kbd_r_inc;
 always@(posedge clk_sys) begin
-	reg old_ps2;
-	old_ps2 <= ps2_clk;
-	if(~old_ps2 & ps2_clk) begin
+	reg old_clk;
+	old_clk <= clk_ps2;
+	if(~old_clk & clk_ps2) begin
 		ps2_kbd_r_inc <= 0;
 
 		if(ps2_kbd_r_inc) ps2_kbd_rptr <= ps2_kbd_rptr + 1'd1;
@@ -334,15 +345,15 @@ reg [3:0] ps2_mouse_tx_state;
 reg [7:0] ps2_mouse_tx_byte;
 reg ps2_mouse_parity;
 
-assign ps2_mouse_clk = ps2_clk || (ps2_mouse_tx_state == 0);
+assign ps2_mouse_clk = clk_ps2 || (ps2_mouse_tx_state == 0);
 
 // ps2 transmitter
 // Takes a byte from the FIFO and sends it in a ps2 compliant serial format.
 reg ps2_mouse_r_inc;
 always@(posedge clk_sys) begin
-	reg old_ps2;
-	old_ps2 <= ps2_clk;
-	if(~old_ps2 & ps2_clk) begin
+	reg old_clk;
+	old_clk <= clk_ps2;
+	if(~old_clk & clk_ps2) begin
 		ps2_mouse_r_inc <= 0;
 
 		if(ps2_mouse_r_inc) ps2_mouse_rptr <= ps2_mouse_rptr + 1'd1;
