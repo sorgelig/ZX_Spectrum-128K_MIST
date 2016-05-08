@@ -237,9 +237,9 @@ reg  [5:0] Rx, Gx, Bx;
 wire       I,G,R,B;
 wire       Pixel = tmx_hi ? hiSRegister[15] : SRegister[7] ^ (AttrOut[7] & FlashCnt[4]);
 assign     {I,G,R,B} = Pixel ? {AttrOut[6],AttrOut[2:0]} : {AttrOut[6],AttrOut[5:3]};
-wire [7:0] color = palette[SRegister[7] ? {AttrOut[7:6],1'b0,AttrOut[2:0]} : {AttrOut[7:6],1'b1,AttrOut[5:3]}];
+wire [7:0] color = palette[(tmx_hi ? hiSRegister[15] : SRegister[7]) ? {AttrOut[7:6],1'b0,AttrOut[2:0]} : {AttrOut[7:6],1'b1,AttrOut[5:3]}];
 
-always_comb casex({HBlank | VSync, ulap_ena & ~tmx_hi, ulap_mono})
+always_comb casex({HBlank | VSync, ulap_ena, ulap_mono})
 	'b1XX: {Rx,Gx,Bx} <= 0;
 	'b00X: {Rx,Gx,Bx} <= {{R, R, I & R, I & R, I & R, I & R}, {G, G, I & G, I & G, I & G, I & G}, {B, B, I & B, I & B, I & B, I & B}};
 	'b010: {Rx,Gx,Bx} <= {{color[4:2],color[4:2]}, {color[7:5],color[7:5]}, {color[1:0],|color[1:0],color[1:0],|color[1:0]}};
