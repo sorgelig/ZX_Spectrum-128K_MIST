@@ -31,6 +31,7 @@ module video
 	input         clk_sys,	// master clock
 	input         ce_7mp,
 	input         ce_7mn,
+	input         ce_28m,
 	output reg    ce_cpu_sp,
 	output reg    ce_cpu_sn,
 
@@ -99,8 +100,8 @@ osd #(10'd10, 10'd0, 3'd4) osd
 scandoubler scandoubler 
 (
 	.clk_sys(clk_sys),
-	.ce_x2(ce_7mp | ce_7mn),
-	.ce_x1(ce_7mp),
+	.ce_x2(ce_28m),
+	.ce_x1(ce_7mp | ce_7mn),
 
 	.scanlines(0),
 

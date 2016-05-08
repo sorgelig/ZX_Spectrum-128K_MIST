@@ -74,6 +74,7 @@ pll pll
 reg  ce_psg;  //1.75MHz
 reg  ce_7mp;
 reg  ce_7mn;
+reg  ce_28m;
 
 reg  cpu_en;
 reg  ce_cpu_tp;
@@ -91,6 +92,7 @@ always @(negedge clk_sys) begin
 
 	counter <=  counter + 1'd1;
 
+	ce_28m  <= !counter[1:0];
 	ce_7mp  <= !counter[3] & !counter[2:0];
 	ce_7mn  <=  counter[3] & !counter[2:0];
 	ce_psg  <= !counter[5:0];
