@@ -222,16 +222,17 @@ T80pa cpu
 );
 
 always_comb begin
-	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel, divmmc_sel, addr[7:0]==8'h1F, addr[0], psg_enable})
-		'b00XXXXXX: cpu_din = ram_dout;
-		'b01XXXXXX: cpu_din = tape_dout;
-		'b1X01XXXX: cpu_din = fdd_dout;
-		'b1X001XXX: cpu_din = divmmc_dout;
-		'b1X0001XX: cpu_din = {2'b00, joystick_0[5:0] | joystick_1[5:0]};
-		'b1X000011: cpu_din = (addr[14] ? sound_data : 8'hFF);
-		'b1X000010: cpu_din = port_ff;
-		'b1X00000X: cpu_din = {1'b1, tape_in, 1'b1, key_data[4:0]};
-		'b1X1XXXXX: cpu_din = 8'hFF;
+	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel, divmmc_sel, addr[7:0]==8'h1F, addr[0], psg_enable, ulap_sel})
+		'b00XXXXXXX: cpu_din = ram_dout;
+		'b01XXXXXXX: cpu_din = tape_dout;
+		'b1X01XXXXX: cpu_din = fdd_dout;
+		'b1X001XXXX: cpu_din = divmmc_dout;
+		'b1X0001XXX: cpu_din = {2'b00, joystick_0[5:0] | joystick_1[5:0]};
+		'b1X000011X: cpu_din = (addr[14] ? sound_data : 8'hFF);
+		'b1X0000101: cpu_din = ulap_dout;
+		'b1X0000100: cpu_din = port_ff;
+		'b1X00000XX: cpu_din = {1'b1, tape_in, 1'b1, key_data[4:0]};
+		'b1X1XXXXXX: cpu_din = 8'hFF;
 	endcase
 end
 
@@ -388,8 +389,9 @@ wire        ce_cpu_sp;
 wire [12:0] vram_addr;
 wire  [7:0] vram_dout;
 wire  [7:0] port_ff;
-video video(.*, .mZX(~status[4]), .m128(status[5]));
-
+wire        ulap_sel;
+wire  [7:0] ulap_dout;
+video video(.*, .din(cpu_dout), .mZX(~status[4]), .m128(status[5]));
 
 //////////////////   KEYBOARD   //////////////////
 wire [11:1] Fn;

@@ -23,6 +23,8 @@
 
 module video
 (
+	input         reset,
+
 	input         clk_sys,	// master clock
 	input         ce_7mp,
 	input         ce_7mn,
@@ -31,15 +33,21 @@ module video
 
 	// CPU interfacing
 	input  [15:0] addr,
+	input   [7:0] din,
 	input         nMREQ,
 	input         nIORQ,
 	input         nRFSH,
+	input         nWR,
 	output        nINT,
 
 	// VRAM interfacing
 	output [12:0] vram_addr,
 	input   [7:0] vram_dout,
 	output  [7:0] port_ff,
+	
+	// ULA+
+	output        ulap_sel,
+	output  [7:0] ulap_dout,
 
 	// Misc. signals
 	input         mZX,
@@ -74,9 +82,9 @@ osd #(10'd10, 10'd0, 3'd4) osd
 (
 	.*,
 	.ce_pix(ce_7mp),
-	.VGA_Rx({R, R, I & R, I & R, I & R, I & R}),
-	.VGA_Gx({G, G, I & G, I & G, I & G, I & G}),
-	.VGA_Bx({B, B, I & B, I & B, I & B, I & B}),
+	.VGA_Rx(Rx),
+	.VGA_Gx(Gx),
+	.VGA_Bx(Bx),
 	.VGA_R(VGA_Rs),
 	.VGA_G(VGA_Gs),
 	.VGA_B(VGA_Bs),
@@ -161,6 +169,7 @@ always @(posedge clk_sys) begin
 		if ((hc[3:0] == 4) || (hc[3:0] == 12)) begin
 			SRegister <= bits;
 			AttrOut <= VidEN ? attr : {2'b00,border_color,border_color};
+			ulap_brd <= ~VidEN;
 		end else begin
 			SRegister <= {SRegister[6:0],1'b0};
 		end
@@ -193,6 +202,7 @@ reg        VSync;
 reg  [7:0] SRegister;
 reg [12:0] vaddr;
 
+reg        ulap_brd;
 reg  [7:0] AttrOut;
 reg  [4:0] FlashCnt;
 
@@ -204,7 +214,17 @@ reg  [7:0] attr;
 
 wire I,G,R,B;
 wire Pixel = SRegister[7] ^ (AttrOut[7] & FlashCnt[4]);
-assign {I,G,R,B} = (HBlank || VSync) ? 4'b0000 : Pixel ? {AttrOut[6],AttrOut[2:0]} : {AttrOut[6],AttrOut[5:3]};
+assign {I,G,R,B} = Pixel ? {AttrOut[6],AttrOut[2:0]} : {AttrOut[6],AttrOut[5:3]};
+
+wire [7:0] color = palette[(ulap_brd | ~SRegister[7]) ? {AttrOut[7:6],1'b1,AttrOut[5:3]} : {AttrOut[7:6],1'b0,AttrOut[2:0]}];
+reg  [5:0] Rx, Gx, Bx;
+
+always_comb casex({HBlank | VSync, ulap_ena, ulap_mono})
+	'b1XX: {Rx,Gx,Bx} <= 0;
+	'b00X: {Rx,Gx,Bx} <= {{R, R, I & R, I & R, I & R, I & R}, {G, G, I & G, I & G, I & G, I & G}, {B, B, I & B, I & B, I & B, I & B}};
+	'b010: {Rx,Gx,Bx} <= {{color[4:2],color[4:2]}, {color[7:5],color[7:5]}, {color[1:0],|color[1:0],color[1:0],|color[1:0]}};
+	'b011: {Rx,Gx,Bx} <= {color[7:2], color[7:2], color[7:2]};
+endcase
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -236,5 +256,36 @@ always @(negedge clk_sys) begin
 	end
 end
 
+/////////////////  ULA+  ///////////////////
+
+assign     ulap_dout = ulap_group ? {ulap_mono, ulap_ena} : palette[pal_addr];
+assign     ulap_sel  = ulap_acc & addr[14];
+
+wire       ulap_acc = ({addr[15], 1'b0, addr[13:0]} == 'hBF3B);
+wire       io_wr = ~nIORQ & ~nWR;
+reg  [5:0] pal_addr;
+reg        ulap_group;
+reg        ulap_ena;
+reg        ulap_mono;
+reg  [7:0] palette[64];
+
+always @(posedge clk_sys) begin
+	reg old_wr;
+	old_wr <= io_wr;
+
+	if(reset) ulap_ena <= 0;
+	else if(~old_wr & io_wr & ulap_acc) begin
+		if(addr[14]) begin
+			if(ulap_group) {ulap_mono,ulap_ena} <= din[1:0];
+				else palette[pal_addr] <= din;
+		end else begin
+			case(din[7:6])
+				0: {ulap_group, pal_addr} <= {1'b0, din[5:0]};
+				1: ulap_group <= 1;
+				default: ;
+			endcase
+		end
+	end
+end
 
 endmodule
