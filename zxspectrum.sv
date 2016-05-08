@@ -290,16 +290,16 @@ sram ram
 	.ready(ram_ready)
 );
 
-wire vram_we = (ram_addr[24:16] == 1) & ram_addr[14] & ~ram_addr[13];
+wire vram_we = (ram_addr[24:16] == 1) & ram_addr[14];
 vram vram
 (
     .clock(clk_sys),
 
-    .wraddress({ram_addr[15], ram_addr[12:0]}),
+    .wraddress({ram_addr[15], ram_addr[13:0]}),
     .data(ram_din),
     .wren(ram_we & vram_we),
 
-    .rdaddress({page_scr, vram_addr}),
+    .rdaddress(vram_addr),
     .q(vram_dout)
 );
 
@@ -386,7 +386,7 @@ sigma_delta_dac #(9) dac_r
 ////////////////////   VIDEO   ///////////////////
 wire        ce_cpu_sn;
 wire        ce_cpu_sp;
-wire [12:0] vram_addr;
+wire [14:0] vram_addr;
 wire  [7:0] vram_dout;
 wire  [7:0] port_ff;
 wire        ulap_sel;
