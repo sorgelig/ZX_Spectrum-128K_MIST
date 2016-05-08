@@ -3,7 +3,7 @@
 //
 // MSBI is the highest bit number. NOT amount of bits!
 //
-module sigma_delta_dac #(parameter MSBI=7)
+module sigma_delta_dac #(parameter MSBI=7, parameter INV=1'b1)
 (
    output reg      DACout, //Average Output feeding analog lowpass
    input  [MSBI:0] DACin,  //DAC input (excess 2**MSBI)
@@ -23,10 +23,10 @@ always @(*) SigmaAdder = DeltaAdder + SigmaLatch;
 always @(posedge CLK or posedge RESET) begin
    if(RESET) begin
       SigmaLatch <= 1'b1 << (MSBI+1);
-      DACout <= 1;
+      DACout <= INV;
    end else begin
       SigmaLatch <= SigmaAdder;
-      DACout <= ~SigmaLatch[MSBI+2];
+      DACout <= SigmaLatch[MSBI+2] ^ INV;
    end
 end
 
