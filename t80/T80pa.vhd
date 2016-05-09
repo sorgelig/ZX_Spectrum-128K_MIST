@@ -89,7 +89,8 @@ entity T80pa is
 		BUSAK_n		: out std_logic;
 		A				: out std_logic_vector(15 downto 0);
 		DI				: in  std_logic_vector(7 downto 0);
-		DO				: out std_logic_vector(7 downto 0)
+		DO				: out std_logic_vector(7 downto 0);
+		REG			: out std_logic_vector(207 downto 0) -- IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
 	);
 end T80pa;
 
@@ -139,6 +140,7 @@ begin
 			DInst => DI,
 			DI => DI_Reg,
 			DO => DO,
+			REG => REG,
 			MC => MCycle,
 			TS => TState,
 			IntCycle_n => IntCycle_n);

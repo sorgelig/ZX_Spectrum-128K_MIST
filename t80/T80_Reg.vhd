@@ -69,7 +69,8 @@ entity T80_Reg is
 		DOBH		: out std_logic_vector(7 downto 0);
 		DOBL		: out std_logic_vector(7 downto 0);
 		DOCH		: out std_logic_vector(7 downto 0);
-		DOCL		: out std_logic_vector(7 downto 0)
+		DOCL		: out std_logic_vector(7 downto 0);
+		DOR		: out std_logic_vector(127 downto 0)
 	);
 end T80_Reg;
 
@@ -101,5 +102,6 @@ begin
 	DOBL <= RegsL(to_integer(unsigned(AddrB)));
 	DOCH <= RegsH(to_integer(unsigned(AddrC)));
 	DOCL <= RegsL(to_integer(unsigned(AddrC)));
+	DOR  <= RegsH(7) & RegsL(7) & RegsH(6) & RegsL(6) & RegsH(5) & RegsL(5) & RegsH(4) & RegsL(4) & RegsH(3) & RegsL(3) & RegsH(2) & RegsL(2) & RegsH(1) & RegsL(1) & RegsH(0) & RegsL(0);
 
 end;

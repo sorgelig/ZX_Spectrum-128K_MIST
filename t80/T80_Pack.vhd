@@ -86,7 +86,8 @@ package T80_Pack is
 		TS			: out std_logic_vector(2 downto 0);
 		IntCycle_n	: out std_logic;
 		IntE		: out std_logic;
-		Stop		: out std_logic
+		Stop		: out std_logic;
+		REG			: out std_logic_vector(207 downto 0) -- IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
 	);
 	end component;
 
@@ -106,7 +107,8 @@ package T80_Pack is
 		DOBH		: out std_logic_vector(7 downto 0);
 		DOBL		: out std_logic_vector(7 downto 0);
 		DOCH		: out std_logic_vector(7 downto 0);
-		DOCL		: out std_logic_vector(7 downto 0)
+		DOCL		: out std_logic_vector(7 downto 0);
+		DOR		: out std_logic_vector(127 downto 0)
 	);
 	end component;
 
