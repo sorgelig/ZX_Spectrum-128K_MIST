@@ -90,6 +90,7 @@ always @(posedge clk_sys) begin
 	reg        skip;
 	reg        auto_blk;
 	reg  [4:0] blk_num;
+	reg        old_start;
 
 	old_rden <= rd_en;
 
@@ -133,8 +134,10 @@ always @(posedge clk_sys) begin
 		blk_list <= '{default:0};
 		blk_num <= 0;
 		rd_req <= 0;
+		old_start <= 0;
 	end else if(ce) begin
 
+		old_start <= start;
 		if(start & ~auto_blk) play_pause <= 0;
 
 		old_pause <= pause;
@@ -292,6 +295,7 @@ always @(posedge clk_sys) begin
 		end else begin
 
 			// CSW file
+			if(old_start & ~start) play_pause <= 1;
 
 			if(hdrsz && read_done) begin
 				if(hdrsz == 7) freq[ 7:0] <= din_r;
@@ -383,9 +387,9 @@ always @(posedge clk_sys) begin
 
 	old_m1 <= m1;
 	if(m1 & ~old_m1) begin
-		tone_wait <= rom_en & (addr == 16'h5ED);
+		if(rom_en & (addr == 16'h5ED)) tone_wait <= 1;
 		if((addr == 16'h556) & rom_en) {wait_for_tape, turbo, hdr} <= {1'b1, tape_allow_turbo & mode & available, req_hdr};
-		if((addr < 16'h53F) | (addr >= 16'h605) | ~rom_en) {wait_for_tape, turbo, hdr} <= 0;
+		if((addr < 16'h53F) | (addr >= 16'h605) | ~rom_en) {wait_for_tape, turbo, hdr, tone_wait} <= 0;
 
 		if(tape_ld1 & (addr < 'h5CC)) begin
 			byte_wait <= 1;
@@ -396,28 +400,25 @@ always @(posedge clk_sys) begin
 		end
 		if(!tape_ld1) tape_arr[1] <= 'hFE;
 	end
+	
+	if(reset) {wait_for_tape, turbo, hdr, tone_wait} <= 0;
 end
 
-reg [24:0] size;
 reg        tape_ready;
 reg        tape_allow_turbo;
 reg        mode;
-always @(posedge clk_sys, posedge reset) begin
+always @(posedge clk_sys) begin
 	reg old_download;
+	old_download <= ioctl_download;
 
-	if(reset) begin
+	if(reset | ioctl_download) begin
 		mode <= 0;
 		tape_ready <= 0;
-		old_download <= 0;
 		tape_allow_turbo <= 0;
-	end else begin
-		old_download <= ioctl_download;
-		if(old_download & ~ioctl_download) begin
-			tape_ready <= 1;
-			tape_allow_turbo <= ~wait_for_tape;
-			mode <= tap_mode;
-		end
-		if(ioctl_download) tape_ready <= 0;
+	end else if(old_download & ~ioctl_download) begin
+		tape_ready <= 1;
+		tape_allow_turbo <= ~wait_for_tape;
+		mode <= tap_mode;
 	end
 end
 
