@@ -5,10 +5,12 @@ Some verilog models from Till Harbaum [Spectrum](https://github.com/mist-devel/m
 ### Features:
 - Fully functional ZX Spectrum 48K, 128K and Pentagon 128 with correct CPU and Video timings
 - Turbo 7MHz, 14MHz, 28MHz, 56MHz.
+- ULA+ v1.1 programmable palettes with extended Timex control.
+- Timex HiColor, HiRes modes.
 - DivMMC with [ESXDOS](http://www.esxdos.org/) (TAP, TRD, SNA files)
 - Original Tape loading through OSD (CSW files)
 - TR-DOS and native TRD images (read-only)
-- Native TAP with turbo loading.
+- Native TAP with turbo loading. Fast loading for TAP and CSW.
 
 ### Installation:
 Copy the *.rbf file at the root of the SD card. You can rename the file to core.rbf if you want the MiST to load it automatically at startup.
@@ -36,6 +38,8 @@ In normal mode, while TAP loading, the following keys can be used:
 - F3 - skip to next part
 
 **CSW** files are supported and always loaded in normal mode. This format is useful only for apps using non-standard loaders with non-standard transfer speeds. Can use F1 key to pause/continue.
+
+OSD option **Fast tape load** increases CPU frequency to 56MHz while tape loading.
 
 ### Turbo modes
 You can control CPU speed by following keys:

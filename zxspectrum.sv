@@ -101,20 +101,21 @@ always @(negedge clk_sys) begin
 	ce_cpu_tn <= !((counter & turbo) ^ turbo ^ turbo[4:1]);
 end
 
-reg [4:0] turbo, turbo_req = 5'b11111;
+reg [4:0] turbo, turbo_key = 5'b11111;
 always @(posedge clk_sys) begin
 	reg [8:4] old_Fn;
 	old_Fn <= Fn[8:4];
 
 	if(!mod) begin
-		if(~old_Fn[4] & Fn[4]) turbo_req <= 5'b11111;
-		if(~old_Fn[5] & Fn[5]) turbo_req <= 5'b01111;
-		if(~old_Fn[6] & Fn[6]) turbo_req <= 5'b00111;
-		if(~old_Fn[7] & Fn[7]) turbo_req <= 5'b00011;
-		if(~old_Fn[8] & Fn[8]) turbo_req <= 5'b00001;
+		if(~old_Fn[4] & Fn[4]) turbo_key <= 5'b11111;
+		if(~old_Fn[5] & Fn[5]) turbo_key <= 5'b01111;
+		if(~old_Fn[6] & Fn[6]) turbo_key <= 5'b00111;
+		if(~old_Fn[7] & Fn[7]) turbo_key <= 5'b00011;
+		if(~old_Fn[8] & Fn[8]) turbo_key <= 5'b00001;
 	end
 end
 
+wire [4:0] turbo_req = (tape_active & ~status[6]) ? 5'b00001 : turbo_key;
 always @(posedge clk_sys) begin
 	reg [1:0] timeout;
 
@@ -165,12 +166,12 @@ wire        ioctl_erasing;
 wire  [4:0] ioctl_index;
 reg         ioctl_force_erase = 0;
 
-mist_io #(.STRLEN(100)) user_io
+mist_io #(.STRLEN(125)) user_io
 (
 	.*,
 	.conf_str
 	(
-        "SPECTRUM;TRD;F1,TAP;F2,CSW;O3,Autoload ESXDOS,No,Yes;O4,Video Type,ZX,Pent;O5,Video Version,48k,128k"
+        "SPECTRUM;TRD;F1,TAP;F2,CSW;O6,Fast tape load,On,Off;O3,Autoload ESXDOS,No,Yes;O4,Video Type,ZX,Pent;O5,Video Version,48k,128k"
 	),
 
 	// unused
@@ -200,6 +201,10 @@ wire        cold_reset = (mod[1] & Fn[11]) | (ioctl_download & !ioctl_index);
 wire        warm_reset =  mod[2] & Fn[11];
 wire        test_reset =  mod[0] & Fn[11];
 
+wire[207:0]	cpu_reg;  // IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
+wire [15:0] reg_DE  = cpu_reg[111:96];
+wire  [7:0] reg_A   = cpu_reg[7:0];
+
 T80pa cpu
 (
 	.RESET_n(~reset),
@@ -220,7 +225,8 @@ T80pa cpu
 	.BUSAK_n(nBUSACK),
 	.A(addr),
 	.DO(cpu_dout),
-	.DI(cpu_din)
+	.DI(cpu_din),
+	.REG(cpu_reg)
 );
 
 always_comb begin
@@ -536,6 +542,7 @@ wire        tape_dout_en;
 wire        tape_turbo;
 wire  [7:0] tape_dout;
 wire        tape_led;
+wire        tape_active;
 reg         tape_in;
 
 smart_tape tape
@@ -548,7 +555,9 @@ smart_tape tape
 	.prev(Fn[2]),
 	.next(Fn[3]),
 	.audio_out(tape_in),
-	.activity(tape_led),
+	.led(tape_led),
+	.active(tape_active),
+	.req_hdr((reg_DE == 'h11) & !reg_A),
 
 	.buff_rd_en(~nRFSH),
 	.buff_rd(tape_req),

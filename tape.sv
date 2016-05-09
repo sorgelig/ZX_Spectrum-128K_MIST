@@ -43,6 +43,7 @@ module tape
 	input         next,
 	output reg    active,
 	output reg    available,
+	input         req_hdr,
 
 	input         tap_mode,
 	input  [24:0] tape_size,
@@ -91,7 +92,7 @@ always @(posedge clk_sys) begin
 	reg  [4:0] blk_num;
 
 	old_rden <= rd_en;
-	
+
 	if(old_rden & ~rd_en) begin
 		if(rd_req) begin
 			if(~read_done) begin
@@ -181,6 +182,10 @@ always @(posedge clk_sys) begin
 										blk_type <= din_r[7];
 										if(~din_r[7] & ~std_load) pilot <= 4844;
 										state <= state + 1'b1;
+										if(req_hdr & (din_r != 0)) begin
+											state <= 4;
+											skip  <=1;
+										end
 									end
 								end
 							end
@@ -339,8 +344,10 @@ module smart_tape
 	input         pause,
 	input         prev,
 	input         next,
+	input         req_hdr,
 	output        audio_out,
-	output        activity,
+	output        led,
+	output        active,
 
 	input         buff_rd_en,
 	output        buff_rd,
@@ -360,13 +367,14 @@ module smart_tape
 
 assign dout_en = tape_ld1 | tape_ld2;
 assign dout = tape_ld2 ? 8'h0 : tape_arr[addr - 16'h5CA];
-assign activity = act_cnt[24] ? act_cnt[23:16] > act_cnt[7:0] : act_cnt[23:16] <= act_cnt[7:0];
+assign led  = act_cnt[24] ? act_cnt[23:16] > act_cnt[7:0] : act_cnt[23:16] <= act_cnt[7:0];
 
 reg [7:0] tape_arr[14] = '{'h18, 'hFE, 'h2E, 'hFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 reg  byte_wait;
 reg  wait_for_tape;
 reg  tone_wait;
+reg  hdr;
 wire tape_ld1 = ((addr >= 'h5CA) & (addr < 'h5D8) & rom_en & turbo);
 wire tape_ld2 = ((addr >= 'h56C) & (addr < 'h58F) & rom_en & turbo);
 
@@ -376,8 +384,8 @@ always @(posedge clk_sys) begin
 	old_m1 <= m1;
 	if(m1 & ~old_m1) begin
 		tone_wait <= rom_en & (addr == 16'h5ED);
-		if((addr == 16'h556) & rom_en) {wait_for_tape, turbo} <= {1'b1, tape_allow_turbo & mode & available};
-		if((addr < 16'h53F) | (addr >= 16'h605) | ~rom_en) {wait_for_tape, turbo} <= 2'b00;
+		if((addr == 16'h556) & rom_en) {wait_for_tape, turbo, hdr} <= {1'b1, tape_allow_turbo & mode & available, req_hdr};
+		if((addr < 16'h53F) | (addr >= 16'h605) | ~rom_en) {wait_for_tape, turbo, hdr} <= 0;
 
 		if(tape_ld1 & (addr < 'h5CC)) begin
 			byte_wait <= 1;
@@ -413,7 +421,6 @@ always @(posedge clk_sys, posedge reset) begin
 	end
 end
 
-wire       active;
 wire       byte_ready;
 wire [7:0] tape_dout;
 wire       available;
@@ -428,6 +435,7 @@ tape tape
 	.next(next),
 	.active(active),
 	.available(available),
+	.req_hdr(hdr),
 
 	.tap_mode(mode),
 	.tape_ready(tape_ready),
