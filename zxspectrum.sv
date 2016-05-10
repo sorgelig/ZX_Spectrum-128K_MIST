@@ -565,8 +565,8 @@ smart_tape tape
 	.buff_din(ram_dout),
 
 	.ioctl_download(ioctl_download & ((ioctl_index == 2) | (ioctl_index == 3))),
-	.ioctl_size(ioctl_addr - 25'h400000 + 1'b1),
-	.tap_mode(ioctl_index == 2),
+	.tape_size(ioctl_addr - 25'h400000 + 1'b1),
+	.tape_mode(ioctl_index == 2),
 
 	.m1(~nM1 & ~nMREQ),
 	.rom_en(&page_rom),
