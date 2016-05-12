@@ -197,7 +197,7 @@ wire        nBUSACK;
 wire        nINT;
 wire        nBUSRQ = ~(ioctl_download | ioctl_erasing);
 wire        reset  = buttons[1] | status[0] | esxRESET | cold_reset | warm_reset | test_reset;
-wire        cold_reset = (mod[1] & Fn[11]) | (ioctl_download & !ioctl_index);
+wire        cold_reset = (mod[1] & Fn[11]) | init_reset;
 wire        warm_reset =  mod[2] & Fn[11];
 wire        test_reset =  mod[0] & Fn[11];
 
@@ -244,6 +244,12 @@ always_comb begin
 	endcase
 end
 
+reg init_reset = 1;
+always @(posedge clk_sys) begin
+	reg old_erasing;
+	old_erasing <= ioctl_erasing;
+	if(old_erasing & ~ioctl_erasing) init_reset <= 0;
+end
 
 //////////////////   MEMORY   //////////////////
 wire        dma = (reset | ~nBUSACK) & ~nBUSRQ;
@@ -289,10 +295,11 @@ sram ram
 (
 	.*,
 	.init(~locked),
-	.clk_sdram(clk_sys),
+	.clk(clk_sys),
 	.dout(ram_dout),
 	.din (ram_din),
 	.addr(ram_addr),
+	.wtbt(0),
 	.we(ram_we),
 	.rd(ram_rd),
 	.ready(ram_ready)
