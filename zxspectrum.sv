@@ -166,12 +166,12 @@ wire        ioctl_erasing;
 wire  [4:0] ioctl_index;
 reg         ioctl_force_erase = 0;
 
-mist_io #(.STRLEN(125)) user_io
+mist_io #(.STRLEN(130)) user_io
 (
 	.*,
 	.conf_str
 	(
-        "SPECTRUM;TRD;F1,TAP;F2,CSW;O6,Fast tape load,On,Off;O3,Autoload ESXDOS,No,Yes;O4,Video Type,ZX,Pent;O5,Video Version,48k,128k"
+        "SPECTRUM;TRD;F1,TAP;F2,CSW;O6,Fast tape load,On,Off;O4,Video type,ZX,Pent;O5,Video version,48k,128k;O7,ULA+ & Timex,Enable,Disable"
 	),
 
 	// unused
@@ -399,6 +399,7 @@ wire  [7:0] vram_dout;
 wire  [7:0] port_ff;
 wire        ulap_sel;
 wire  [7:0] ulap_dout;
+wire        ulap_tmx_ena = ~(trdos_en | status[7]);
 video video(.*, .din(cpu_dout), .mZX(~status[4]), .m128(status[5]));
 
 //////////////////   KEYBOARD   //////////////////
