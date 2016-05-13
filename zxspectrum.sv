@@ -125,9 +125,11 @@ always @(posedge clk_sys) begin
 			cpu_en  <= 0;
 			timeout <= 1;
 			turbo   <= turbo_req;
-		end else if(!cpu_en && !timeout && ram_ready) begin
+		end else if(!cpu_en & !timeout & ram_ready) begin
 			cpu_en  <= 1;
-		end else if(!turbo[4:2] & !ram_ready) begin // for >14MHz turbo
+		end else if(!turbo[4:2] & !ram_ready) begin // SDRAM wait for 28MHz/56MHz turbo
+			cpu_en  <= 0;
+		end else if(!turbo[4:3] & !ram_ready & tape_active) begin // SDRAM wait for TAPE load on 14MHz
 			cpu_en  <= 0;
 		end
 	end

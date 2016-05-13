@@ -93,13 +93,15 @@ always @(posedge clk_sys) begin
 
 	old_rden <= rd_en;
 
-	if(old_rden & ~rd_en) begin
+	if(~rd_en) begin
 		if(rd_req) begin
-			if(~read_done) begin
-				din_r <= din;
-				read_done <= 1;
+			if(old_rden) begin
+				if(~read_done) begin
+					din_r <= din;
+					read_done <= 1;
+				end
+				rd_req <= 0;
 			end
-			rd_req <= 0;
 		end else begin
 			rd_req <= ~read_done;
 		end
