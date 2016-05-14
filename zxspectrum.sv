@@ -76,7 +76,7 @@ reg  ce_7mp;
 reg  ce_7mn;
 reg  ce_28m;
 
-reg  cpu_en;
+reg  cpu_en = 1;
 reg  ce_cpu_tp;
 reg  ce_cpu_tn;
 
@@ -101,7 +101,7 @@ always @(negedge clk_sys) begin
 	ce_cpu_tn <= !((counter & turbo) ^ turbo ^ turbo[4:1]);
 end
 
-reg [4:0] turbo, turbo_key = 5'b11111;
+reg [4:0] turbo = 5'b11111, turbo_key = 5'b11111;
 always @(posedge clk_sys) begin
 	reg [8:4] old_Fn;
 	old_Fn <= Fn[8:4];
