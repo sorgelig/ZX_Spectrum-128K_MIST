@@ -4,6 +4,7 @@ Some verilog models from Till Harbaum [Spectrum](https://github.com/mist-devel/m
 
 ### Features:
 - Fully functional ZX Spectrum 48K, 128K and Pentagon 128 with correct CPU and Video timings
+- Up to 1024KB for Pentagon mode (Pentagon 1024SL v2.x compatible 7FFD port)
 - Turbo 7MHz, 14MHz, 28MHz, 56MHz.
 - ULA+ v1.1 programmable palettes with extended Timex control.
 - Timex HiColor, HiRes modes.
@@ -50,6 +51,11 @@ You can control CPU speed by following keys:
 - F8 - 56MHz
 
 It's useful to switch to maximum speed when you are loading tape in normal mode. Due to SDRAM speed limitation 28MHz and 56MHz speeds include wait states, so effective CPU speed is lower than nominal.
+
+### Configurations:
+Model **Sinclair** + Feature **48K/1024K** = **ZX Spectrum 48K** video timings. Model **Sinclair** + Feature **128K** = **ZX Spectrum 128K** video timings. 128KB memory available for both Sinclair features.
+
+Model **Pentagon** + Feature **128K** = **Pentagon 128** video timings with 128KB memory. Model **Pentagon** + Feature **128K/1024K** = **Pentagon 128** video timings with **1024KB** available. Bits 7-5 of port 7FFD provide access to additional 768KB of RAM (Bit 5 doesn't lock 7FFD port).
 
 ### Download precompiled binaries and system ROMs:
 Go to [releases](https://github.com/sorgelig/ZX_Spectrum-128K_MIST/tree/master/releases) folder.

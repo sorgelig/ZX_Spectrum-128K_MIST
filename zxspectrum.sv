@@ -168,12 +168,12 @@ wire        ioctl_erasing;
 wire  [4:0] ioctl_index;
 reg         ioctl_force_erase = 0;
 
-mist_io #(.STRLEN(130)) user_io
+mist_io #(.STRLEN(135)) user_io
 (
 	.*,
 	.conf_str
 	(
-        "SPECTRUM;TRD;F1,TAP;F2,CSW;O6,Fast tape load,On,Off;O4,Video type,ZX,Pent;O5,Video version,48k,128k;O7,ULA+ & Timex,Enable,Disable"
+        "SPECTRUM;TRD;F1,TAP;F2,CSW;O6,Fast tape load,On,Off;O4,Model,Sinclair,Pentagon;O5,Feature,48K/1024K,128K;O7,ULA+ & Timex,Enable,Disable"
 	),
 
 	// unused
@@ -261,6 +261,7 @@ reg         ram_we;
 reg         ram_rd;
 wire  [7:0] ram_dout;
 wire        ram_ready;
+wire        p1024 = status[4] & ~status[5];
 
 always_comb begin
 	casex({dma, tape_req, fdd_read, ext_ram, addr[15:14]})
@@ -322,10 +323,10 @@ vram vram
 
 reg        test_rom;
 reg  [7:0] page_reg;
-wire       page_disable = page_reg[5];
+wire       page_disable = ~p1024 & page_reg[5];
 wire [1:0] page_rom     = {~trdos_en & ~test_rom, page_reg[4] & ~test_rom};
 wire       page_scr     = page_reg[3];
-wire [2:0] page_ram     = page_reg[2:0];
+wire [5:0] page_ram     = {{3{p1024}} & page_reg[7:5], page_reg[2:0]};
 wire       page_write   = ~nIORQ & ~nWR & nM1 & ~addr[15] & ~addr[1] & ~page_disable;
 
 always @(posedge clk_sys) begin
@@ -409,7 +410,7 @@ wire  [7:0] port_ff;
 wire        ulap_sel;
 wire  [7:0] ulap_dout;
 wire        ulap_tmx_ena = ~(trdos_en | status[7]);
-video video(.*, .din(cpu_dout), .mZX(~status[4]), .m128(status[5]));
+video video(.*, .din(cpu_dout), .page_ram(page_ram[2:0]), .mZX(~status[4]), .m128(status[5]));
 
 //////////////////   KEYBOARD   //////////////////
 wire [11:1] Fn;
