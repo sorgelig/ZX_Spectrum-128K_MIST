@@ -12,6 +12,7 @@ Some verilog models from Till Harbaum [Spectrum](https://github.com/mist-devel/m
 - Original Tape loading through OSD (CSW files)
 - TR-DOS and native TRD images (read-only)
 - Native TAP with turbo loading. Fast loading for TAP and CSW.
+- Kempston Mouse and Joystick.
 
 ### Installation:
 Copy the *.rbf file at the root of the SD card. You can rename the file to core.rbf if you want the MiST to load it automatically at startup.
@@ -56,6 +57,9 @@ It's useful to switch to maximum speed when you are loading tape in normal mode.
 Model **Sinclair** + Feature **48K/1024K** = **ZX Spectrum 48K** video timings. Model **Sinclair** + Feature **128K** = **ZX Spectrum 128K** video timings. 128KB memory available for both Sinclair features.
 
 Model **Pentagon** + Feature **128K** = **Pentagon 128** video timings with 128KB memory. Model **Pentagon** + Feature **128K/1024K** = **Pentagon 128** video timings with **1024KB** available. Bits 7-5 of port 7FFD provide access to additional 896KB of RAM (Bit 5 doesn't lock 7FFD port).
+
+### Mouse:
+Kempston mouse has no strict convention which bit (D0 or D1) reflects a main button. After each reset, the first button pressed on mouse (left or right buttons only) will be represented by bit D0 (other button will be represented by bit D1). So, if you are not satisfied by mouse button map, then simply press reset and then press other button first.
 
 ### Download precompiled binaries and system ROMs:
 Go to [releases](https://github.com/sorgelig/ZX_Spectrum-128K_MIST/tree/master/releases) folder.

@@ -139,6 +139,8 @@ end
 //////////////////   MIST ARM I/O   ///////////////////
 wire        ps2_kbd_clk;
 wire        ps2_kbd_data;
+wire        ps2_mouse_clk;
+wire        ps2_mouse_data;
 
 wire  [7:0] joystick_0;
 wire  [7:0] joystick_1;
@@ -179,8 +181,6 @@ mist_io #(.STRLEN(135)) user_io
 	// unused
 	.joystick_analog_0(),
 	.joystick_analog_1(),
-	.ps2_mouse_clk(),
-	.ps2_mouse_data(),
 	.sd_mounted()
 );
 
@@ -232,12 +232,12 @@ T80pa cpu
 );
 
 always_comb begin
-	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel, divmmc_sel, addr[7:0]==8'h1F, addr[0], psg_enable, ulap_sel})
+	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel, divmmc_sel, addr[5:0]==8'h1F, addr[0], psg_enable, ulap_sel})
 		'b00XXXXXXX: cpu_din = ram_dout;
 		'b01XXXXXXX: cpu_din = tape_dout;
 		'b1X01XXXXX: cpu_din = fdd_dout;
 		'b1X001XXXX: cpu_din = divmmc_dout;
-		'b1X0001XXX: cpu_din = {2'b00, joystick_0[5:0] | joystick_1[5:0]};
+		'b1X0001XXX: cpu_din = mouse_sel ? mouse_data : {2'b00, joystick_0[5:0] | joystick_1[5:0]};
 		'b1X000011X: cpu_din = (addr[14] ? sound_data : 8'hFF);
 		'b1X0000101: cpu_din = ulap_dout;
 		'b1X0000100: cpu_din = port_ff;
@@ -412,11 +412,16 @@ wire  [7:0] ulap_dout;
 wire        ulap_tmx_ena = ~(trdos_en | status[7]);
 video video(.*, .din(cpu_dout), .page_ram(page_ram[2:0]), .mZX(~status[4]), .m128(status[5]));
 
-//////////////////   KEYBOARD   //////////////////
+
+////////////////////   HID   ////////////////////
 wire [11:1] Fn;
 wire  [2:0] mod;
 wire  [4:0] key_data;
 keyboard kbd( .* );
+
+wire        mouse_sel;
+wire  [7:0] mouse_data;
+mouse mouse( .*, .addr(addr[10:8]), .sel(mouse_sel), .dout(mouse_data));
 
 
 //////////////////   DIVMMC   //////////////////

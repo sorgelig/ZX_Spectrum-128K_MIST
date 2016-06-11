@@ -30,7 +30,7 @@
 // clk_ps2 = clk_sys/(PS2DIV*2)
 //
 
-module mist_io #(parameter STRLEN=0, parameter PS2DIV=20)
+module mist_io #(parameter STRLEN=0, parameter PS2DIV=100)
 (
 
 	// parameter STRLEN and the actual length of conf_str have to match
