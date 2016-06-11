@@ -10,4 +10,5 @@ del PLLJ_PLLSPE_INFO.txt
 del *.qws
 del *.ppf
 del *.qip
+del build_id.v
 pause
