@@ -58,8 +58,10 @@ Model **Sinclair** + Feature **48K/1024K** = **ZX Spectrum 48K** video timings. 
 
 Model **Pentagon** + Feature **128K** = **Pentagon 128** video timings with 128KB memory. Model **Pentagon** + Feature **128K/1024K** = **Pentagon 128** video timings with **1024KB** available. Bits 7-5 of port 7FFD provide access to additional 896KB of RAM (Bit 5 doesn't lock 7FFD port).
 
-### Mouse:
+### Mouse and Joystick:
 Kempston mouse has no strict convention which bit (D0 or D1) reflects a main button. After each reset, the first button pressed on mouse (left or right buttons only) will be represented by bit D0 (other button will be represented by bit D1). So, if you are not satisfied by mouse button map, then simply press reset and then press other button first.
+Due to port conflict with Kempston joystick, core uses autodetection. Any mouse activity will switch port to mouse control. Any joystick activity will switch port to joystick control.
+Some games/apps autodetect the mouse. So, move the mouse or click its button before use such games/apps.
 
 ### Download precompiled binaries and system ROMs:
 Go to [releases](https://github.com/sorgelig/ZX_Spectrum-128K_MIST/tree/master/releases) folder.

@@ -419,9 +419,14 @@ wire  [2:0] mod;
 wire  [4:0] key_data;
 keyboard kbd( .* );
 
-wire        mouse_sel;
+reg         mouse_sel;
 wire  [7:0] mouse_data;
-mouse mouse( .*, .addr(addr[10:8]), .sel(mouse_sel), .dout(mouse_data));
+mouse mouse( .*, .addr(addr[10:8]), .sel(), .dout(mouse_data));
+
+always @(posedge clk_sys) begin
+	if(joystick_0[5:0] | joystick_1[5:0]) mouse_sel <= 0;
+	if(~ps2_mouse_clk) mouse_sel <= 1;
+end
 
 
 //////////////////   DIVMMC   //////////////////
