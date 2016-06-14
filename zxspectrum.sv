@@ -59,7 +59,7 @@ module zxspectrum
 assign LED = ~(divmmc_sd_activity | ioctl_erasing | ioctl_download | fdd_read | tape_led);
 
 `include "build_id.v"
-localparam CONF_STR = {"SPECTRUM;TRD;F1,TAP;F2,CSW;O6,Fast tape load,On,Off;O4,Model,Sinclair,Pentagon;O5,Feature,48K/1024K,128K;O7,ULA+ & Timex,Enable,Disable;V0,v3.20.",`BUILD_DATE};
+localparam CONF_STR = {"SPECTRUM;;F0,TRD,Load Disk;F1,TAP,Load Tape;F2,CSW,Load Tape;O6,Fast tape load,On,Off;O4,Model,Sinclair,Pentagon;O5,Feature,ZX48/P1024,ZX128/P128;O7,ULA+ & Timex,Enable,Disable;V0,v3.20.",`BUILD_DATE};
 
 
 ////////////////////   CLOCKS   ///////////////////
