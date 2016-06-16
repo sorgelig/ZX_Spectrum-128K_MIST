@@ -56,10 +56,10 @@ module zxspectrum
 );
 `default_nettype none
 
-assign LED = ~(divmmc_sd_activity | ioctl_erasing | ioctl_download | fdd_read | tape_led);
+assign LED = ~(ioctl_erasing | ioctl_download | tape_led);
 
 `include "build_id.v"
-localparam CONF_STR = {"SPECTRUM;;F0,TRD,Load Disk;F1,TAP,Load Tape;F2,CSW,Load Tape;O6,Fast tape load,On,Off;O4,Model,Sinclair,Pentagon;O5,Feature,ZX48/P1024,ZX128/P128;O7,ULA+ & Timex,Enable,Disable;V0,v3.20.",`BUILD_DATE};
+localparam CONF_STR = {"SPECTRUM;;S0,TRD,Load Disk;F1,TAP,Load Tape;F2,CSW,Load Tape;O6,Fast tape load,On,Off;O4,Model,Sinclair,Pentagon;O5,Feature,ZX48/P1024,ZX128/P128;O7,ULA+ & Timex,Enable,Disable;V0,v3.20.",`BUILD_DATE};
 
 
 ////////////////////   CLOCKS   ///////////////////
@@ -156,14 +156,12 @@ wire [31:0] sd_lba;
 wire        sd_rd;
 wire        sd_wr;
 wire        sd_ack;
-wire        sd_ack_conf;
-wire        sd_conf;
-wire        sd_sdhc;
 wire  [8:0] sd_buff_addr;
 wire  [7:0] sd_buff_dout;
 wire  [7:0] sd_buff_din;
 wire        sd_buff_wr;
-wire        sd_mounted;
+wire        img_mounted;
+wire [31:0] img_size;
 
 wire        ioctl_wr;
 wire [24:0] ioctl_addr;
@@ -177,11 +175,13 @@ mist_io #(.STRLEN($size(CONF_STR)>>3)) mist_io
 (
 	.*,
 	.conf_str(CONF_STR),
+	.sd_conf(0),
+	.sd_sdhc(1),
+	.sd_ack_conf(),
 
 	// unused
 	.joystick_analog_0(),
-	.joystick_analog_1(),
-	.sd_mounted()
+	.joystick_analog_1()
 );
 
 
@@ -198,7 +198,7 @@ wire        nRFSH;
 wire        nBUSACK;
 wire        nINT;
 wire        nBUSRQ = ~(ioctl_download | ioctl_erasing);
-wire        reset  = buttons[1] | status[0] | esxRESET | cold_reset | warm_reset | test_reset;
+wire        reset  = buttons[1] | status[0] | cold_reset | warm_reset | test_reset;
 wire        cold_reset = (mod[1] & Fn[11]) | init_reset;
 wire        warm_reset =  mod[2] & Fn[11];
 wire        test_reset =  mod[0] & Fn[11];
@@ -215,7 +215,7 @@ T80pa cpu
 	.CEN_n(ce_cpu_n),
 	.WAIT_n(1),
 	.INT_n(nINT),
-	.NMI_n(~esxNMI),
+	.NMI_n(~(Fn[11] & fdd_ready & !mod)),
 	.BUSRQ_n(nBUSRQ),
 	.M1_n(nM1),
 	.MREQ_n(nMREQ),
@@ -232,17 +232,16 @@ T80pa cpu
 );
 
 always_comb begin
-	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel, divmmc_sel, addr[5:0]==8'h1F, addr[0], psg_enable, ulap_sel})
-		'b00XXXXXXX: cpu_din = ram_dout;
-		'b01XXXXXXX: cpu_din = tape_dout;
-		'b1X01XXXXX: cpu_din = fdd_dout;
-		'b1X001XXXX: cpu_din = divmmc_dout;
-		'b1X0001XXX: cpu_din = mouse_sel ? mouse_data : {2'b00, joystick_0[5:0] | joystick_1[5:0]};
-		'b1X000011X: cpu_din = (addr[14] ? sound_data : 8'hFF);
-		'b1X0000101: cpu_din = ulap_dout;
-		'b1X0000100: cpu_din = port_ff;
-		'b1X00000XX: cpu_din = {1'b1, tape_in, 1'b1, key_data[4:0]};
-		'b1X1XXXXXX: cpu_din = 8'hFF;
+	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel, addr[5:0]==8'h1F, addr[0], psg_enable, ulap_sel})
+		'b00XXXXXX: cpu_din = ram_dout;
+		'b01XXXXXX: cpu_din = tape_dout;
+		'b1X01XXXX: cpu_din = fdd_dout;
+		'b1X001XXX: cpu_din = mouse_sel ? mouse_data : {2'b00, joystick_0[5:0] | joystick_1[5:0]};
+		'b1X00011X: cpu_din = (addr[14] ? sound_data : 8'hFF);
+		'b1X000101: cpu_din = ulap_dout;
+		'b1X000100: cpu_din = port_ff;
+		'b1X0000XX: cpu_din = {1'b1, tape_in, 1'b1, key_data[4:0]};
+		'b1X1XXXXX: cpu_din = 8'hFF;
 	endcase
 end
 
@@ -264,15 +263,13 @@ wire        ram_ready;
 wire        p1024 = status[4] & ~status[5];
 
 always_comb begin
-	casex({dma, tape_req, fdd_read, ext_ram, addr[15:14]})
-		'b1XXX_XX: ram_addr = ioctl_addr;
-		'b01XX_XX: ram_addr = tape_addr;
-		'b001X_XX: ram_addr = {2'd2, fdd_addr};
-		'b0001_00: ram_addr = divmmc_addr;
-		'b0000_00: ram_addr = {5'h17, page_rom, addr[13:0]};
-		'b000X_01: ram_addr = {       3'd5,     addr[13:0]};
-		'b000X_10: ram_addr = {       3'd2,     addr[13:0]};
-		'b000X_11: ram_addr = {       page_ram, addr[13:0]};
+	casex({dma, tape_req, addr[15:14]})
+		'b1X_XX: ram_addr = ioctl_addr;
+		'b01_XX: ram_addr = tape_addr;
+		'b00_00: ram_addr = {5'h17, page_rom, addr[13:0]};
+		'b00_01: ram_addr = {       3'd5,     addr[13:0]};
+		'b00_10: ram_addr = {       3'd2,     addr[13:0]};
+		'b00_11: ram_addr = {       page_ram, addr[13:0]};
 	endcase
 
 	casex({dma, tape_req})
@@ -284,13 +281,13 @@ always_comb begin
 	casex({dma, tape_req})
 		'b1X: ram_rd = 0;
 		'b01: ram_rd = ~nMREQ;
-		'b00: ram_rd = (fdd_read | ~nMREQ) & ~nRD;
+		'b00: ram_rd = ~nMREQ & ~nRD;
 	endcase
 
 	casex({dma, tape_req})
 		'b1X: ram_we = ioctl_wr;
 		'b01: ram_we = 0;
-		'b00: ram_we = (ext_ram_write | addr[15] | addr[14]) & ~nMREQ & ~nWR;
+		'b00: ram_we = (addr[15] | addr[14]) & ~nMREQ & ~nWR;
 	endcase
 end
 
@@ -429,66 +426,9 @@ always @(posedge clk_sys) begin
 end
 
 
-//////////////////   DIVMMC   //////////////////
-reg   [1:0] esxdos_downloaded = 2'b00;
-wire        esxdos_ready = esxdos_downloaded[~status[3]];
-wire        ext_ram = divmmc_active && esxdos_ready;
-wire        ext_ram_write = ext_ram && (addr[15:13] == 3'b001);
-
-wire [24:0] divmmc_addr = {6'b000011, divmmc_mapaddr};
-wire        divmmc_sd_activity;
-wire        divmmc_active;
-wire        divmmc_sel;
-wire [18:0] divmmc_mapaddr;
-wire  [7:0] divmmc_dout;
-
-wire        spi_ss;
-wire        spi_clk;
-wire        spi_di;
-wire        spi_do;
-
-reg         esxRQ;
-wire        esxRESET = esxRQ & ~esxdos_ready & esxdos_downloaded[0];
-wire        esxNMI   = esxRQ &  esxdos_ready;
-wire        btnESX   = ((Fn[11] && !mod) | joystick_0[7] | joystick_1[7]) & ~fdd_ready & ~test_rom;
-
-always @(posedge clk_sys) begin
-	esxRQ <= btnESX;
-	if(esxRQ & ~btnESX) esxdos_downloaded[1] <= esxdos_downloaded[0];
-
-	ioctl_force_erase <= cold_reset;
-	if(cold_reset) esxdos_downloaded[1] <= 0;
-
-	if(ioctl_download && !ioctl_index && (ioctl_addr == 25'h181FFF)) esxdos_downloaded[0] <= 1;
-end
-
-divmmc divmmc
-(
-	.*,
-	.enable(~reset & esxdos_ready),
-	.din(cpu_dout),
-	.dout(divmmc_dout),
-	.active(divmmc_active),
-	.active_io(divmmc_sel),
-	.mapped_addr(divmmc_mapaddr),
-
-	.sd_activity(divmmc_sd_activity)
-);
-
-sd_card sd_card
-(
-	.*,
-	.allow_sdhc(1),
-	.spi_di(spi_do),
-	.spi_do(spi_di)
-);
-
-
 ///////////////////   FDC   ///////////////////
 reg         trdos_en;
 wire  [7:0] wd_dout;
-wire [19:0] fdd_addr;
-wire [19:0] fdd_size;
 wire        fdd_rd;
 reg         fdd_ready;
 reg   [1:0] fdd_drive;
@@ -497,40 +437,32 @@ reg         fdd_reset;
 wire        fdd_intrq;
 wire        fdd_drq;
 wire        fdd_sel  = trdos_en & addr[2] & addr[1] & ~nIORQ & nM1;
-wire        fdd_read = fdd_rd & fdd_sel;
 wire  [7:0] fdd_dout = addr[7] ? {fdd_intrq, fdd_drq, 6'h3F} : wd_dout;
 wire        fdd_m1   = ~nM1 & ~nMREQ;
 
 always @(posedge clk_sys) begin
 	reg old_wr;
-	reg old_download;
+	reg old_mounted;
 	reg old_m1;
 
 	old_wr <= nWR;
 	if(old_wr & ~nWR & fdd_sel & addr[7]) {fdd_side, fdd_reset, fdd_drive} <= {~cpu_dout[4], ~cpu_dout[2], cpu_dout[1:0]};
 
-	old_download <= ioctl_download;
-	if(cold_reset) begin
-		fdd_ready <= 0;
-		fdd_size  <= 0;
-	end else begin
-		if(!ioctl_download & old_download & (ioctl_index == 1) & ~esxdos_ready) begin
-			fdd_ready <= 1;
-			fdd_size  <= ioctl_addr[19:0] + 1'b1;
-		end
-	end
+	old_mounted <= img_mounted;
+	if(cold_reset) fdd_ready <= 0;
+	if(~old_mounted & img_mounted) fdd_ready <= 1;
 
 	old_m1 <= fdd_m1;
 	if(reset) trdos_en <= 0;
 	else begin
 		if(fdd_m1 && ~old_m1) begin
 			if(addr[15:14]) trdos_en <= 0;
-				else if((addr[13:8] == 6'h3D) & page_rom[0] & fdd_ready) trdos_en <= 1;
+				else if(((addr[13:8] == 6'h3D) | (addr == 'h66)) & page_rom[0] & fdd_ready) trdos_en <= 1;
 		end
 	end
 end
 
-wd1793 fdd
+wd1793 #(1) fdd
 (
 	.clk_sys(clk_sys),
 	.ce(ce_cpu),
@@ -544,14 +476,28 @@ wd1793 fdd
 	.drq(fdd_drq),
 	.intrq(fdd_intrq),
 
-	.buff_size(fdd_size),
-	.buff_addr(fdd_addr),
-	.buff_read(fdd_rd),
-	.buff_din(ram_dout),
+	.img_mounted(img_mounted),
+	.img_size(img_size),
+	.sd_lba(sd_lba),
+	.sd_rd(sd_rd),
+	.sd_wr(sd_wr),
+	.sd_ack(sd_ack),
+	.sd_buff_addr(sd_buff_addr),
+	.sd_buff_dout(sd_buff_dout),
+	.sd_buff_din(sd_buff_din),
+	.sd_buff_wr(sd_buff_wr),
+
+	.wp(0),
 
 	.size_code(1),
 	.side(fdd_side),
-	.ready(!fdd_drive & fdd_ready)
+	.ready(!fdd_drive & fdd_ready),
+
+	.input_active(0),
+	.input_addr(0),
+	.input_data(0),
+	.input_wr(0),
+	.buff_din(0)
 );
 
 
