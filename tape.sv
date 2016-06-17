@@ -428,8 +428,8 @@ always @(posedge clk_sys) begin
 		if(!tape_ld1) tape_stub[1] <= 'hFE;
 	end
 
-	if(reset        |  ioctl_download) {tape_ready, allow_turbo} <= 0;
-	if(old_download & ~ioctl_download) {tape_ready, allow_turbo} <= {1'b1, ~stdload & tape_mode};
+	if(reset | (prev & next) | ioctl_download) {tape_ready, allow_turbo} <= 0;
+	if(old_download & ~ioctl_download)         {tape_ready, allow_turbo} <= {1'b1, ~stdload & tape_mode};
 end
 
 endmodule
