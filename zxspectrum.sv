@@ -79,6 +79,7 @@ reg  ce_7mp;
 reg  ce_7mn;
 reg  ce_28m;
 
+reg  pause;
 reg  cpu_en = 1;
 reg  ce_cpu_tp;
 reg  ce_cpu_tn;
@@ -98,7 +99,7 @@ always @(negedge clk_sys) begin
 	ce_28m  <= !counter[1:0];
 	ce_7mp  <= !counter[3] & !counter[2:0];
 	ce_7mn  <=  counter[3] & !counter[2:0];
-	ce_psg  <= !counter[5:0];
+	ce_psg  <= !counter[5:0] & ~pause;
 
 	ce_cpu_tp <= !(counter & turbo);
 	ce_cpu_tn <= !((counter & turbo) ^ turbo ^ turbo[4:1]);
@@ -106,8 +107,10 @@ end
 
 reg [4:0] turbo = 5'b11111, turbo_key = 5'b11111;
 always @(posedge clk_sys) begin
-	reg [8:4] old_Fn;
-	old_Fn <= Fn[8:4];
+	reg [9:4] old_Fn;
+	old_Fn <= Fn[9:4];
+
+	if(reset) pause <= 0;
 
 	if(!mod) begin
 		if(~old_Fn[4] & Fn[4]) turbo_key <= 5'b11111;
@@ -115,6 +118,7 @@ always @(posedge clk_sys) begin
 		if(~old_Fn[6] & Fn[6]) turbo_key <= 5'b00111;
 		if(~old_Fn[7] & Fn[7]) turbo_key <= 5'b00011;
 		if(~old_Fn[8] & Fn[8]) turbo_key <= 5'b00001;
+		if(~old_Fn[9] & Fn[9]) pause <= ~pause;
 	end
 end
 
@@ -129,10 +133,12 @@ always @(posedge clk_sys) begin
 			timeout <= 1;
 			turbo   <= turbo_req;
 		end else if(!cpu_en & !timeout & ram_ready) begin
-			cpu_en  <= 1;
+			cpu_en  <= ~pause;
 		end else if(!turbo[4:2] & !ram_ready) begin // SDRAM wait for 28MHz/56MHz turbo
 			cpu_en  <= 0;
 		end else if(!turbo[4:3] & !ram_ready & tape_active) begin // SDRAM wait for TAPE load on 14MHz
+			cpu_en  <= 0;
+		end else if(cpu_en & pause) begin
 			cpu_en  <= 0;
 		end
 	end
