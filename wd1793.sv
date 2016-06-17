@@ -95,6 +95,7 @@ reg   [1:0] wd_size_code;
 
 wire  [7:0] buff_dout;
 reg   [1:0] sd_block = 0;
+reg         format;
 generate
 	if(RWMODE) begin
 		wd1793_dpram sbuf
@@ -107,7 +108,7 @@ generate
 			.q_a(sd_buff_din),
 
 			.address_b(scan_active ? {2'b00, scan_addr[8:0]} : byte_addr),
-			.data_b(din),
+			.data_b(format ? 8'd0 : din),
 			.wren_b(wre & buff_wr & (addr == A_DATA) & ~scan_active),
 			.q_b(buff_dout)
 		);
@@ -278,7 +279,6 @@ always @(posedge clk_sys) begin
 	reg [9:0] seektimer;
 	reg [7:0] ra_sector;
 	reg       multisector;
-	reg       cmp_side, wdreg_side;
 	reg       write;
 	reg [5:0] ack;
 	reg       sd_busy;
@@ -328,7 +328,6 @@ always @(posedge clk_sys) begin
 		seektimer <= 'h3FF;
 		{ack, sd_wr, sd_rd, sd_busy} <= 0;
 		ra_sector <= 1;
-		cmp_side <= 0;
 	end else if(ce) begin
 
 		ack <= {ack[4:0], sd_ack};
@@ -395,12 +394,12 @@ always @(posedge clk_sys) begin
 						if(!seektimer) begin
 							byte_addr <= 0;
 							if(var_size && EDSK) begin
-								edsk_addr <= edsk_start;
+								if(~format) edsk_addr <= edsk_start;
 								spt_addr  <= (side ? spt_size>>1 : 8'd0) + disk_track;
 								state     <= STATE_SEARCH_1;
 							end else begin
 								if(!wdreg_sector || (wdreg_sector > sectors_per_track)) begin
-									s_seekerr <= 1;
+									if(~format) s_seekerr <= 1;
 									state <= STATE_ENDCOMMAND;
 								end else begin
 									state <= rw_type ? STATE_WAIT_READ : STATE_READ;
@@ -413,8 +412,7 @@ always @(posedge clk_sys) begin
 				begin
 					if(rw_type & (edsk_track == disk_track) &
 									 (edsk_side == side) &
-									 (~cmp_side | (edsk_sidef == wdreg_side)) &
-									 (edsk_sector == wdreg_sector)) begin
+									 (format | (edsk_sector == wdreg_sector))) begin
 						state <= STATE_WAIT_READ;
 					end
 					else
@@ -428,7 +426,7 @@ always @(posedge clk_sys) begin
 					end
 					else
 					if(edsk_next == edsk_start) begin
-						s_seekerr <= 1;
+						if(~format) s_seekerr <= 1;
 						state <= STATE_ENDCOMMAND;
 					end
 					else
@@ -522,7 +520,10 @@ always @(posedge clk_sys) begin
 						sd_block <= sd_block + 1'd1;
 						if(sd_block < blk_max) state <= STATE_WAIT_WRITE_1;
 						else begin
-							if(multisector) begin
+							if(format && EDSK && !edsk_next) begin
+								state <= STATE_ENDCOMMAND;
+							end else if(multisector) begin
+								edsk_addr <= edsk_next;
 								wdreg_sector <= wdreg_sector + 1'b1;
 								state <= STATE_SEARCH;
 							end else begin
@@ -585,6 +586,7 @@ always @(posedge clk_sys) begin
 			// End any command.
 			STATE_ENDCOMMAND:
 				begin
+					format  <= 0;
 					buff_rd <= 0;
 					if(RWMODE) buff_wr <=0;
 					state <= STATE_IDLE;
@@ -647,7 +649,8 @@ always @(posedge clk_sys) begin
 									state <= STATE_WAIT;
 								end
 							'h8, 'h9, // READ SECTORS
-							'hA, 'hB: // WRITE SECTORS
+							'hA, 'hB, // WRITE SECTORS
+							'hF:	    // WRITE TRACK
 								begin
 									// seek data
 									// 5: 0: read, 1: write
@@ -656,8 +659,6 @@ always @(posedge clk_sys) begin
 									// 2: E: some 15ms delay
 									// 1: C: check side matching?
 									// 0: 0
-									wdreg_side <= din[3];
-									cmp_side   <= din[1];
 
 									s_drq_busy <= 2'b01;
 									{s_wrfault,s_seekerr,s_crcerr,s_lostdata} <= 0;
@@ -665,11 +666,15 @@ always @(posedge clk_sys) begin
 									{write,buff_rd} <= din[5] ? 2'b10 : 2'b01;
 									if(RWMODE) buff_wr <= din[5];
 
+									if(din[6]) wdreg_sector <= 1;
+
+									format      <= din[6];
 									multisector <= din[4];
 									rw_type     <= 1;
 									write_data  <= 0;
 									read_data   <= 0;
 									edsk_start  <= 0;
+									edsk_addr   <= 0;
 									state       <= STATE_SEARCH;
 
 									if(s_readonly & din[5]) begin
@@ -686,10 +691,10 @@ always @(posedge clk_sys) begin
 									{write,buff_rd} <= 0;
 									if(RWMODE) buff_wr <=0;
 
+									format      <= 0;
 									multisector <= 0;
 									rw_type     <= 0;
 									read_data   <= 0;
-									cmp_side    <= 0;
 									edsk_start  <= edsk_next;
 									data_length <= 6;
 
@@ -710,8 +715,7 @@ always @(posedge clk_sys) begin
 									if(state != STATE_IDLE) state <= STATE_ABORT;
 										else {s_wrfault,s_seekerr,s_crcerr,s_lostdata, s_drq_busy} <= 0;
 								end
-							'hE,	// READ TRACK
-							'hF:	// WRITE TRACK
+							'hE:	// READ TRACK
 								begin
 									{s_wrfault,s_crcerr,s_lostdata} <= 0;
 									s_seekerr  <= 1;
