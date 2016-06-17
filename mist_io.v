@@ -86,7 +86,7 @@ module mist_io #(parameter STRLEN=0, parameter PS2DIV=100)
 	input             ioctl_force_erase,
 	output reg        ioctl_download = 0, // signal indicating an active download
 	output reg        ioctl_erasing = 0,  // signal indicating an active erase
-	output reg  [4:0] ioctl_index,        // menu index used to upload the file
+	output reg  [7:0] ioctl_index,        // menu index used to upload the file
 	output reg        ioctl_wr = 0,
 	output reg [24:0] ioctl_addr,
 	output reg  [7:0] ioctl_dout
@@ -441,9 +441,9 @@ always@(posedge SPI_SCK, posedge SPI_SS2) begin
 		if((cmd == UIO_FILE_TX) && (cnt == 15)) begin
 			// prepare 
 			if(SPI_DI) begin
-				case(ioctl_index) 
+				case(ioctl_index[4:0]) 
 							1: addr <= 25'h200000; // TRD buffer  at 2MB
-						 2,3: addr <= 25'h400000; // tape buffer at 4MB 
+							2: addr <= 25'h400000; // tape buffer at 4MB 
 					default: addr <= 25'h170000; // boot rom
 				endcase
 				ioctl_download <= 1; 
@@ -461,7 +461,7 @@ always@(posedge SPI_SCK, posedge SPI_SS2) begin
 		end
 
       // expose file (menu) index
-      if((cmd == UIO_FILE_INDEX) && (cnt == 15)) ioctl_index <= {sbuf[3:0], SPI_DI};
+      if((cmd == UIO_FILE_INDEX) && (cnt == 15)) ioctl_index <= {sbuf, SPI_DI};
 	end
 end
 
@@ -474,6 +474,7 @@ always@(posedge clk_sys) begin
 	reg  [5:0] erase_clk_div;
 	reg [24:0] end_addr;
 	reg        erase_trigger = 0;
+	reg [24:0] saved_addr;
 
 	rclkD    <= rclk;
 	rclkD2   <= rclkD;
@@ -494,7 +495,7 @@ always@(posedge clk_sys) begin
 		old_force <= ioctl_force_erase;
 		if((ioctl_force_erase & ~old_force) | erase_trigger) begin
 			erase_trigger <= 0;
-			ioctl_addr    <= 25'h19FFFF;
+			ioctl_addr    <= 25'h183FFF;
 			erase_mask    <= 25'hFFFFFF;
 			end_addr      <= 25'h1C0000;
 			erase_clk_div <= 1;

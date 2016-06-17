@@ -41,6 +41,7 @@ module wd1793 #(parameter RWMODE=0, EDSK=1)
 	input        wp,          // write protect
 
 	input  [2:0] size_code,
+	input        layout,      // 0 = Track-Side-Sector, 1 - Side-Track-Sector
 	input        side,
 	input        ready,
 
@@ -117,14 +118,16 @@ generate
 	end
 endgenerate
 
-wire  [7:0] dts = {disk_track[6:0], side};
+reg  [19:0] disk_size;
+wire [19:0] hs  = (layout & side) ? disk_size >> 1 : 20'd0;
+wire  [7:0] dts = {disk_track[6:0], side} >> layout;
 always @* begin
 	case(disk_type)
-				0: buff_a = {{1'b0, dts, 4'b0000} + {dts, 3'b000} + {dts, 1'b0} + wdreg_sector - 1'd1,  7'd0};
-				1: buff_a = {{dts, 4'b0000}                                     + wdreg_sector - 1'd1,  8'd0};
-				2: buff_a = {{dts, 3'b000}  + dts                               + wdreg_sector - 1'd1,  9'd0};
-				3: buff_a = {{dts, 2'b00}   + dts                               + wdreg_sector - 1'd1, 10'd0};
-				4: buff_a = {{dts, 3'b000} + {dts, 1'b0}                        + wdreg_sector - 1'd1,  9'd0};
+				0: buff_a = hs + {{1'b0, dts, 4'b0000} + {dts, 3'b000} + {dts, 1'b0} + wdreg_sector - 1'd1,  7'd0};
+				1: buff_a = hs + {{dts, 4'b0000}                                     + wdreg_sector - 1'd1,  8'd0};
+				2: buff_a = hs + {{dts, 3'b000}  + dts                               + wdreg_sector - 1'd1,  9'd0};
+				3: buff_a = hs + {{dts, 2'b00}   + dts                               + wdreg_sector - 1'd1, 10'd0};
+				4: buff_a = hs + {{dts, 3'b000}  +{dts, 1'b0}                        + wdreg_sector - 1'd1,  9'd0};
 		default: buff_a = edsk_offset;
 	endcase
 	case(disk_type)
@@ -286,17 +289,21 @@ always @(posedge clk_sys) begin
 
 	if(RWMODE) begin
 		old_mounted <= img_mounted;
-		if(old_mounted && ~img_mounted && EDSK) begin
-			scan_active<= 1;
-			scan_addr  <= 0;
-			scan_state <= 0;
-			scan_wr    <= 0;
-			sd_block   <= 0;
+		if(old_mounted && ~img_mounted) begin
+			if(EDSK) begin
+				scan_active<= 1;
+				scan_addr  <= 0;
+				scan_state <= 0;
+				scan_wr    <= 0;
+				sd_block   <= 0;
+			end
+			disk_size <= img_size[19:0];
 		end
 	end else begin
 		scan_active <= input_active;
 		scan_addr   <= input_addr;
 		scan_wr     <= input_wr;
+		disk_size   <= input_addr + 1'd1;
 	end
 
 	if(reset & ~scan_active) begin
@@ -387,7 +394,7 @@ always @(posedge clk_sys) begin
 						seektimer <= seektimer - 1'b1;
 						if(!seektimer) begin
 							byte_addr <= 0;
-							if((disk_type >= 5) && EDSK) begin
+							if(var_size && EDSK) begin
 								edsk_addr <= edsk_start;
 								spt_addr  <= (side ? spt_size>>1 : 8'd0) + disk_track;
 								state     <= STATE_SEARCH_1;

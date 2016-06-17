@@ -59,7 +59,7 @@ module zxspectrum
 assign LED = ~(ioctl_erasing | ioctl_download | tape_led);
 
 `include "build_id.v"
-localparam CONF_STR = {"SPECTRUM;;S0,TRD,Load Disk;F1,TAP,Load Tape;F2,CSW,Load Tape;O6,Fast tape load,On,Off;O4,Model,Sinclair,Pentagon;O5,Feature,ZX48/P1024,ZX128/P128;O7,ULA+ & Timex,Enable,Disable;V0,v3.20.",`BUILD_DATE};
+localparam CONF_STR = {"SPECTRUM;;S0,TRDIMGDSKMGT,Load Disk;F1,TAPCSW,Load Tape;O6,Fast tape load,On,Off;O4,Model,Sinclair,Pentagon;O5,Feature,ZX48/P1024,ZX128/P128;O7,ULA+ & Timex,Enable,Disable;V0,v3.20.",`BUILD_DATE};
 
 
 ////////////////////   CLOCKS   ///////////////////
@@ -168,7 +168,7 @@ wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_dout;
 wire        ioctl_download;
 wire        ioctl_erasing;
-wire  [4:0] ioctl_index;
+wire  [7:0] ioctl_index;
 reg         ioctl_force_erase = 0;
 
 mist_io #(.STRLEN($size(CONF_STR)>>3)) mist_io
@@ -232,7 +232,7 @@ T80pa cpu
 );
 
 always_comb begin
-	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel, addr[5:0]==8'h1F, addr[0], psg_enable, ulap_sel})
+	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel | fdd_sel2, addr[5:0]==8'h1F, addr[0], psg_enable, ulap_sel})
 		'b00XXXXXX: cpu_din = ram_dout;
 		'b01XXXXXX: cpu_din = tape_dout;
 		'b1X01XXXX: cpu_din = fdd_dout;
@@ -263,13 +263,14 @@ wire        ram_ready;
 wire        p1024 = status[4] & ~status[5];
 
 always_comb begin
-	casex({dma, tape_req, addr[15:14]})
-		'b1X_XX: ram_addr = ioctl_addr;
-		'b01_XX: ram_addr = tape_addr;
-		'b00_00: ram_addr = {5'h17, page_rom, addr[13:0]};
-		'b00_01: ram_addr = {       3'd5,     addr[13:0]};
-		'b00_10: ram_addr = {       3'd2,     addr[13:0]};
-		'b00_11: ram_addr = {       page_ram, addr[13:0]};
+	casex({dma, tape_req, plusd_mem, addr[15:14]})
+		'b1XX_XX: ram_addr = ioctl_addr;
+		'b01X_XX: ram_addr = tape_addr;
+		'b001_00: ram_addr = {5'h18, 2'b00   , addr[13:0]};
+		'b000_00: ram_addr = {5'h17, page_rom, addr[13:0]};
+		'b00X_01: ram_addr = {       3'd5,     addr[13:0]};
+		'b00X_10: ram_addr = {       3'd2,     addr[13:0]};
+		'b00X_11: ram_addr = {       page_ram, addr[13:0]};
 	endcase
 
 	casex({dma, tape_req})
@@ -287,7 +288,7 @@ always_comb begin
 	casex({dma, tape_req})
 		'b1X: ram_we = ioctl_wr;
 		'b01: ram_we = 0;
-		'b00: ram_we = (addr[15] | addr[14]) & ~nMREQ & ~nWR;
+		'b00: ram_we = (addr[15] | addr[14] | (plusd_mem & addr[13])) & ~nMREQ & ~nWR;
 	endcase
 end
 
@@ -427,37 +428,58 @@ end
 
 
 ///////////////////   FDC   ///////////////////
+reg         plusd_en;
+reg         plusd_mem;
+wire        fdd_sel2 = plusd_mem & &addr[7:5] & ~addr[2] & &addr[1:0];
+
 reg         trdos_en;
 wire  [7:0] wd_dout;
 wire        fdd_rd;
 reg         fdd_ready;
-reg   [1:0] fdd_drive;
+reg         fdd_drive1;
 reg         fdd_side;
+reg         fdd_layout;
 reg         fdd_reset;
 wire        fdd_intrq;
 wire        fdd_drq;
-wire        fdd_sel  = trdos_en & addr[2] & addr[1] & ~nIORQ & nM1;
-wire  [7:0] fdd_dout = addr[7] ? {fdd_intrq, fdd_drq, 6'h3F} : wd_dout;
+wire        fdd_sel  = trdos_en & addr[2] & addr[1];
+wire  [7:0] fdd_dout = (addr[7] & ~plusd_en) ? {fdd_intrq, fdd_drq, 6'h3F} : wd_dout;
 wire        fdd_m1   = ~nM1 & ~nMREQ;
 
+wire        io_wr = ~nIORQ & ~nWR & nM1;
+//wire        io_rd = ~nIORQ & ~nRD & nM1;
 always @(posedge clk_sys) begin
-	reg old_wr;
+	reg old_wr, old_rd;
 	reg old_mounted;
 	reg old_m1;
 
-	old_wr <= nWR;
-	if(old_wr & ~nWR & fdd_sel & addr[7]) {fdd_side, fdd_reset, fdd_drive} <= {~cpu_dout[4], ~cpu_dout[2], cpu_dout[1:0]};
+	if(cold_reset) {fdd_ready, plusd_en} <= 0;
+	if(reset)      {plusd_mem, trdos_en} <= 0;
 
 	old_mounted <= img_mounted;
-	if(cold_reset) fdd_ready <= 0;
-	if(~old_mounted & img_mounted) fdd_ready <= 1;
+	if(~old_mounted & img_mounted) begin
+		fdd_ready <= 1;
+		plusd_en  <= |ioctl_index[7:6];
+		fdd_layout<= (ioctl_index[7:6] == 1);
+	end
 
+	//old_rd <= io_rd;
+	old_wr <= io_wr;
 	old_m1 <= fdd_m1;
-	if(reset) trdos_en <= 0;
-	else begin
+
+	if(plusd_en) begin
+		trdos_en  <= 0;
+		fdd_reset <= 0;
+		if(~old_wr & io_wr  & (addr[7:0] == 'hEF) & plusd_mem) {fdd_side, fdd_drive1} <= {cpu_dout[7], cpu_dout[1:0] != 2};
+		if(~old_wr & io_wr  & (addr[7:0] == 'hE7)) plusd_mem <= 0;
+		//if(~old_rd & io_rd  & (addr[7:0] == 'hE7) & plusd_mem) plusd_mem <= 1;
+		if(~old_m1 & fdd_m1 & ((addr == 'h08) | (addr == 'h3A) | (addr == 'h66))) plusd_mem <= 1;
+	end else begin
+		plusd_mem  <= 0;
+		if(~old_wr & io_wr & fdd_sel & addr[7]) {fdd_side, fdd_reset, fdd_drive1} <= {~cpu_dout[4], ~cpu_dout[2], !cpu_dout[1:0]};
 		if(fdd_m1 && ~old_m1) begin
 			if(addr[15:14]) trdos_en <= 0;
-				else if(((addr[13:8] == 6'h3D) | (addr == 'h66)) & page_rom[0] & fdd_ready) trdos_en <= 1;
+				else if(((addr[13:8] == 'h3D) | (addr == 'h66)) & page_rom[0] & fdd_ready) trdos_en <= 1;
 		end
 	end
 end
@@ -466,11 +488,11 @@ wd1793 #(1) fdd
 (
 	.clk_sys(clk_sys),
 	.ce(ce_cpu),
-	.reset(fdd_reset),
-	.io_en(fdd_sel & ~addr[7]),
+	.reset(fdd_reset | reset),
+	.io_en((fdd_sel2 | (fdd_sel & ~addr[7])) & ~nIORQ & nM1),
 	.rd(~nRD),
 	.wr(~nWR),
-	.addr(addr[6:5]),
+	.addr(plusd_en ? addr[4:3] : addr[6:5]),
 	.din(cpu_dout),
 	.dout(wd_dout),
 	.drq(fdd_drq),
@@ -489,9 +511,10 @@ wd1793 #(1) fdd
 
 	.wp(0),
 
-	.size_code(1),
+	.size_code(plusd_en ? 3'd4 : 3'd1),
+	.layout(fdd_layout),
 	.side(fdd_side),
-	.ready(!fdd_drive & fdd_ready),
+	.ready(fdd_drive1 & fdd_ready),
 
 	.input_active(0),
 	.input_addr(0),
@@ -531,9 +554,9 @@ smart_tape tape
 	.buff_addr(tape_addr_raw),
 	.buff_din(ram_dout),
 
-	.ioctl_download(ioctl_download & ((ioctl_index == 2) | (ioctl_index == 3))),
+	.ioctl_download(ioctl_download & (ioctl_index[4:0] == 2)),
 	.tape_size(ioctl_addr - 25'h400000 + 1'b1),
-	.tape_mode(ioctl_index == 2),
+	.tape_mode(!ioctl_index[7:6]),
 
 	.m1(~nM1 & ~nMREQ),
 	.rom_en(&page_rom),
