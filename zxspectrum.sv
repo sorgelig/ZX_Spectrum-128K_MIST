@@ -371,12 +371,13 @@ wire [7:0] psg_ch_b;
 wire [7:0] psg_ch_c;
 wire       psg_enable = addr[0] & addr[15] & ~addr[1];
 wire       psg_we     = psg_enable & ~nIORQ & ~nWR & nM1;
+reg        psg_reset;
 
 ym2149 ym2149
 (
 	.CLK(clk_sys),
 	.CE(ce_psg),
-	.RESET(reset),
+	.RESET(reset | psg_reset),
 	.BDIR(psg_we),
 	.BC(addr[14]),
 	.DI(cpu_dout),
@@ -436,7 +437,8 @@ end
 ///////////////////   FDC   ///////////////////
 reg         plusd_en;
 reg         plusd_mem;
-wire        fdd_sel2 = plusd_mem & &addr[7:5] & ~addr[2] & &addr[1:0];
+wire        plusd_ena = plusd_stealth ? plusd_mem : plusd_en;
+wire        fdd_sel2 = plusd_ena & &addr[7:5] & ~addr[2] & &addr[1:0];
 
 reg         trdos_en;
 wire  [7:0] wd_dout;
@@ -444,7 +446,6 @@ wire        fdd_rd;
 reg         fdd_ready;
 reg         fdd_drive1;
 reg         fdd_side;
-reg         fdd_layout;
 reg         fdd_reset;
 wire        fdd_intrq;
 wire        fdd_drq;
@@ -452,8 +453,19 @@ wire        fdd_sel  = trdos_en & addr[2] & addr[1];
 wire  [7:0] fdd_dout = (addr[7] & ~plusd_en) ? {fdd_intrq, fdd_drq, 6'h3F} : wd_dout;
 wire        fdd_m1   = ~nM1 & ~nMREQ;
 
+//
+// current +D implementation notes:
+// 1) all +D ports (except page out port) are disabled if +D memory isn't paged in.
+// 2) only possible way to page in is through hooks at h08, h3A, h66 addresses.
+//
+// This may break compatibility with some apps written specifically to +D using 
+// direct port access (badly written apps), but won't introduce
+// incompatibilities with +D unaware apps.
+//
+wire        plusd_stealth = 1;
+
 wire        io_wr = ~nIORQ & ~nWR & nM1;
-//wire        io_rd = ~nIORQ & ~nRD & nM1;
+wire        io_rd = ~nIORQ & ~nRD & nM1;
 always @(posedge clk_sys) begin
 	reg old_wr, old_rd;
 	reg old_mounted;
@@ -466,22 +478,21 @@ always @(posedge clk_sys) begin
 	if(~old_mounted & img_mounted) begin
 		fdd_ready <= 1;
 		plusd_en  <= |ioctl_index[7:6];
-		fdd_layout<= (ioctl_index[7:6] == 1);
 	end
 
-	//old_rd <= io_rd;
+	old_rd <= io_rd;
 	old_wr <= io_wr;
 	old_m1 <= fdd_m1;
+	psg_reset <= 0;
 
 	if(plusd_en) begin
-		trdos_en  <= 0;
-		fdd_reset <= 0;
-		if(~old_wr & io_wr  & (addr[7:0] == 'hEF) & plusd_mem) {fdd_side, fdd_drive1} <= {cpu_dout[7], cpu_dout[1:0] != 2};
+		trdos_en <= 0;
+		if(~old_wr & io_wr  & (addr[7:0] == 'hEF) & plusd_ena) {fdd_side, fdd_drive1} <= {cpu_dout[7], cpu_dout[1:0] != 2};
 		if(~old_wr & io_wr  & (addr[7:0] == 'hE7)) plusd_mem <= 0;
-		//if(~old_rd & io_rd  & (addr[7:0] == 'hE7) & plusd_mem) plusd_mem <= 1;
-		if(~old_m1 & fdd_m1 & ((addr == 'h08) | (addr == 'h3A) | (addr == 'h66))) plusd_mem <= 1;
+		if(~old_rd & io_rd  & (addr[7:0] == 'hE7) & ~plusd_stealth) plusd_mem <= 1;
+		if(~old_m1 & fdd_m1 & ((addr == 'h08) | (addr == 'h3A) | (addr == 'h66))) {psg_reset,plusd_mem} <= {(addr == 'h66), 1'b1};
 	end else begin
-		plusd_mem  <= 0;
+		plusd_mem <= 0;
 		if(~old_wr & io_wr & fdd_sel & addr[7]) {fdd_side, fdd_reset, fdd_drive1} <= {~cpu_dout[4], ~cpu_dout[2], !cpu_dout[1:0]};
 		if(fdd_m1 && ~old_m1) begin
 			if(addr[15:14]) trdos_en <= 0;
@@ -494,7 +505,7 @@ wd1793 #(1) fdd
 (
 	.clk_sys(clk_sys),
 	.ce(ce_cpu),
-	.reset(fdd_reset | reset),
+	.reset((fdd_reset & ~plusd_en) | reset),
 	.io_en((fdd_sel2 | (fdd_sel & ~addr[7])) & ~nIORQ & nM1),
 	.rd(~nRD),
 	.wr(~nWR),
@@ -518,7 +529,7 @@ wd1793 #(1) fdd
 	.wp(0),
 
 	.size_code(plusd_en ? 3'd4 : 3'd1),
-	.layout(fdd_layout),
+	.layout(ioctl_index[7:6] == 1),
 	.side(fdd_side),
 	.ready(fdd_drive1 & fdd_ready),
 

@@ -84,9 +84,6 @@ assign prepare   = EDSK ? scan_active : img_mounted;
 assign buff_addr = {buff_a[19:9], 9'd0} + byte_addr;
 assign buff_read = ((addr == A_DATA) && buff_rd);
 
-reg         var_size  = 0;
-wire  [2:0] disk_type = var_size ? 3'd5 : size_code;
-
 reg   [7:0] sectors_per_track, edsk_spt = 0;
 wire [10:0] sector_size = 11'd128 << wd_size_code;
 reg  [10:0] byte_addr;
@@ -119,11 +116,13 @@ generate
 	end
 endgenerate
 
+reg         var_size  = 0;
 reg  [19:0] disk_size;
-wire [19:0] hs  = (layout & side) ? disk_size >> 1 : 20'd0;
-wire  [7:0] dts = {disk_track[6:0], side} >> layout;
+reg         layout_r;
+wire [19:0] hs  = (layout_r & side) ? disk_size >> 1 : 20'd0;
+wire  [7:0] dts = {disk_track[6:0], side} >> layout_r;
 always @* begin
-	case(disk_type)
+	case({var_size,size_code})
 				0: buff_a = hs + {{1'b0, dts, 4'b0000} + {dts, 3'b000} + {dts, 1'b0} + wdreg_sector - 1'd1,  7'd0};
 				1: buff_a = hs + {{dts, 4'b0000}                                     + wdreg_sector - 1'd1,  8'd0};
 				2: buff_a = hs + {{dts, 3'b000}  + dts                               + wdreg_sector - 1'd1,  9'd0};
@@ -131,7 +130,7 @@ always @* begin
 				4: buff_a = hs + {{dts, 3'b000}  +{dts, 1'b0}                        + wdreg_sector - 1'd1,  9'd0};
 		default: buff_a = edsk_offset;
 	endcase
-	case(disk_type)
+	case({var_size,size_code})
 				0: sectors_per_track = 26;
 				1: sectors_per_track = 16;
 				2: sectors_per_track = 9;
@@ -139,7 +138,7 @@ always @* begin
 				4: sectors_per_track = 10;
 		default: sectors_per_track = edsk_spt;
 	endcase
-	case(disk_type)
+	case({var_size,size_code})
 				0: wd_size_code = 0;
 				1: wd_size_code = 1;
 				2: wd_size_code = 2;
@@ -298,12 +297,16 @@ always @(posedge clk_sys) begin
 				sd_block   <= 0;
 			end
 			disk_size <= img_size[19:0];
+			layout_r  <= layout;
 		end
 	end else begin
 		scan_active <= input_active;
 		scan_addr   <= input_addr;
 		scan_wr     <= input_wr;
-		disk_size   <= input_addr + 1'd1;
+		if(scan_active & ~input_active) begin
+			disk_size <= input_addr + 1'd1;
+			layout_r  <= layout;
+		end
 	end
 
 	if(reset & ~scan_active) begin
