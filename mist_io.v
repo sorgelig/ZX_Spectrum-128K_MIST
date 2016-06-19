@@ -495,7 +495,7 @@ always@(posedge clk_sys) begin
 		old_force <= ioctl_force_erase;
 		if((ioctl_force_erase & ~old_force) | erase_trigger) begin
 			erase_trigger <= 0;
-			ioctl_addr    <= 25'h183FFF;
+			ioctl_addr    <= 25'h187FFF;
 			erase_mask    <= 25'hFFFFFF;
 			end_addr      <= 25'h1C0000;
 			erase_clk_div <= 1;
