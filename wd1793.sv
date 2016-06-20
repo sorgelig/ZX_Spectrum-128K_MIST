@@ -396,7 +396,7 @@ always @(posedge clk_sys) begin
 						seektimer <= seektimer - 1'b1;
 						if(!seektimer) begin
 							byte_addr <= 0;
-							if(var_size && EDSK) begin
+							if(var_size) begin
 								if(~format) edsk_addr <= edsk_start;
 								spt_addr  <= (side ? spt_size>>1 : 8'd0) + disk_track;
 								state     <= STATE_SEARCH_1;
@@ -523,7 +523,7 @@ always @(posedge clk_sys) begin
 						sd_block <= sd_block + 1'd1;
 						if(sd_block < blk_max) state <= STATE_WAIT_WRITE_1;
 						else begin
-							if(format && EDSK && !edsk_next) begin
+							if(format && var_size && !edsk_next) begin
 								state <= STATE_ENDCOMMAND;
 							end else if(multisector) begin
 								edsk_addr <= edsk_next;
