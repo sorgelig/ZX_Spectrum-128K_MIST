@@ -14,8 +14,17 @@ module ym2149
    output [7:0] CHANNEL_C, // PSG Output channel C
 
    input        SEL,
-   input        MODE
+   input        MODE,
+
+	input  [7:0] IOA_in,
+	output [7:0] IOA_out,
+
+	input  [7:0] IOB_in,
+	output [7:0] IOB_out
 );
+
+assign     IOA_out = ymreg[14];
+assign     IOB_out = ymreg[15];
 
 reg        ena_div;
 reg        ena_div_noise;
@@ -61,8 +70,8 @@ always_comb begin
 		11: dout = ymreg[11];
 		12: dout = ymreg[12];
 		13: dout = {4'b0000, ymreg[13][3:0]};
-		14: dout = (ymreg[7][6] ? ymreg[14] : 8'd0);
-		15: dout = (ymreg[7][7] ? ymreg[15] : 8'd0);
+		14: dout = (ymreg[7][6] ? ymreg[14] : IOA_in);
+		15: dout = (ymreg[7][7] ? ymreg[15] : IOB_in);
 	endcase
 end
 

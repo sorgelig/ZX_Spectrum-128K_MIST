@@ -410,7 +410,10 @@ ym2149 ym2149
 	.CHANNEL_B(psg_ch_b),
 	.CHANNEL_C(psg_ch_c),
 	.SEL(0),
-	.MODE(0)
+	.MODE(0),
+
+	.IOA_in(0),
+	.IOB_in(0)
 );
 
 sigma_delta_dac #(9) dac_l
