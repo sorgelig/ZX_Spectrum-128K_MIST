@@ -94,7 +94,7 @@ reg [7:0] b_data;
 reg [6:0] sbuf;
 reg [7:0] cmd;
 reg [2:0] bit_cnt;    // counts bits 0-7 0-7 ...
-reg [7:0] byte_cnt;   // counts bytes
+reg [9:0] byte_cnt;   // counts bytes
 reg [7:0] but_sw;
 reg [2:0] stick_idx;
 
@@ -179,7 +179,7 @@ always@(posedge SPI_SCK or posedge CONF_DATA0) begin
 
 		// finished reading command byte
       if(bit_cnt == 7) begin
-			if(byte_cnt != 8'd255) byte_cnt <= byte_cnt + 8'd1;
+			if(~&byte_cnt) byte_cnt <= byte_cnt + 8'd1;
 			if(byte_cnt == 0) begin
 				cmd <= spi_dout;
 

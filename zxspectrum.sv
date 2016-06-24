@@ -58,17 +58,20 @@ module zxspectrum
 
 assign LED = ~(ioctl_download | tape_led);
 
+localparam CONF_BDI   = "(BDI)";
+localparam CONF_PLUSD = "(+D) ";
+
 `include "build_id.v"
 localparam CONF_STR = {
 	"SPECTRUM;;",
-	"S0,TRDIMGDSKMGT,Load Disk;",
-	"F1,TAPCSW,Load Tape;",
+	"S,TRDIMGDSKMGT,Load Disk;",
+	"F,TAPCSW,Load Tape;",
 	"O6,Fast tape load,On,Off;",
 	"O89,Video timings,ULA-48,ULA-128,Pentagon;",
-	"OEF,Scanlines,None,25%,50%,75%;",
-	"OAB,Memory,128K,512K,1024K,48K;",
-	"OCD,Features,ULA+ & Timex,ULA+,Timex,None;",
-	"V0,v3.20.",`BUILD_DATE
+	"OFG,Scanlines,None,25%,50%,75%;",
+	"OAC,Memory,Standard 128K,Pentagon 512K,Pentagon 1024K, Profi 1024K,Scorpion 1024K,Standard 48K;",
+	"ODE,Features,ULA+ & Timex,ULA+,Timex,None;",
+	"V,v3.30.",`BUILD_DATE
 };
 
 
@@ -185,10 +188,10 @@ wire  [7:0] ioctl_dout;
 wire        ioctl_download;
 wire  [7:0] ioctl_index;
 
-mist_io #(.STRLEN($size(CONF_STR)>>3)) mist_io
+mist_io #(.STRLEN(($size(CONF_STR)>>3)+5)) mist_io
 (
 	.*,
-	.conf_str(CONF_STR),
+	.conf_str({CONF_STR, plusd_en ? CONF_PLUSD : CONF_BDI}),
 	.sd_conf(0),
 	.sd_sdhc(1),
 	.sd_ack_conf(),
@@ -350,20 +353,21 @@ vram vram
     .q(vram_dout)
 );
 
-reg        m48;
-reg        m1024;
-reg        m512;
+reg        zx48;
+reg        p1024,pf1024,sc1024;
+reg        p512;
 reg        page_scr_copy;
 reg        shadow_rom;
 reg  [7:0] page_reg;
-wire       page_disable = m48 | (~m1024 & page_reg[5]);
+wire       page_disable = zx48 | (~p1024 & page_reg[5]);
 wire       page_scr     = page_reg[3];
-wire [5:0] page_ram     = {{m512,m512,m1024} & page_reg[7:5], page_reg[2:0]};
-wire       page_write   = ~addr[15] & ~addr[1] & ~page_disable;
+wire [5:0] page_ram     = {page_128k, page_reg[2:0]};
+wire       page_write   = ~addr[15] & (~sc1024 | addr[14]) & ~addr[1] & ~page_disable;
+reg  [2:0] page_128k;
 
 reg  [1:0] page_rom;
 always_comb begin
-	casex({shadow_rom, trdos_en, m48 | page_reg[4]})
+	casex({shadow_rom, trdos_en, zx48 | page_reg[4]})
 		'b1XX: page_rom <= 0;
 		'b01X: page_rom <= 1;
 		'b000: page_rom <= 2;
@@ -378,19 +382,26 @@ always @(posedge clk_sys) begin
 
 	if(reset) begin
 		page_scr_copy <= 0;
-		page_reg <= 0;
-		shadow_rom <= shdw_reset;
-		m48   <= (status[11:10] == 3);
-		m512  <= (status[11:10] == 1) | (status[11:10] == 2);
-		m1024 <= (status[11:10] == 2);
+		page_reg  <= 0;
+		page_128k <= 0;
+		shadow_rom <= shdw_reset & ~plusd_en;
+		zx48  <= (status[12:10] == 5);
+		p512  <= (status[12:10] == 1) | (status[12:10] == 2);
+		p1024 <= (status[12:10] == 2);
+		pf1024<= (status[12:10] == 3);
+		sc1024<= (status[12:10] == 4);
 	end else begin
 		if(m1 && ~old_m1 && addr[15:14]) shadow_rom <= 0;
 
 		if(io_wr & ~old_wr) begin
 			if(page_write) begin
-				page_reg <= cpu_dout;
+				page_reg  <= cpu_dout;
+				if(p1024) page_128k[2]   <= cpu_dout[5];
+				if(p512)  page_128k[1:0] <= cpu_dout[7:6];
 				if(~plusd_mem) page_scr_copy <= page_reg[3];
 			end
+			if(pf1024 & (addr == 'hDFFD)) page_128k <= cpu_dout[2:0];
+			if(sc1024 & (addr == 'h1FFD)) page_128k <= {cpu_dout[7:6],cpu_dout[4]};
 		end
 	end
 end
@@ -467,7 +478,7 @@ wire  [7:0] vram_dout;
 wire  [7:0] port_ff;
 wire        ulap_sel;
 wire  [7:0] ulap_dout;
-wire  [1:0] ulap_tmx_ena = {~status[12], ~status[13]} & {~trdos_en, ~trdos_en};
+wire  [1:0] ulap_tmx_ena = {~status[13], ~status[14]} & {~trdos_en, ~trdos_en};
 
 reg mZX, m128;
 always_comb begin
@@ -478,7 +489,7 @@ always_comb begin
 	endcase
 end
 
-video video(.*, .din(cpu_dout), .page_ram(page_ram[2:0]), .scanlines(status[15:14]));
+video video(.*, .din(cpu_dout), .page_ram(page_ram[2:0]), .scanlines(status[16:15]));
 
 
 ////////////////////   HID   ////////////////////
