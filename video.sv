@@ -50,7 +50,7 @@ module video
 	output  [7:0] port_ff,
 	
 	// ULA+
-	input         ulap_tmx_ena,
+	input   [1:0] ulap_tmx_ena,
 	output        ulap_sel,
 	output  [7:0] ulap_dout,
 
@@ -302,8 +302,8 @@ always @(posedge clk_sys) begin
 	if(reset) begin
 		{ulap_ena, tmx_ena, tmx_using_ff, tmx_cfg} <= 0;
 		palette <= '{default:0};
-	end else if(~old_wr & io_wr & ulap_tmx_ena) begin
-		if(ulap_acc) begin
+	end else if(~old_wr & io_wr) begin
+		if(ulap_acc & ulap_tmx_ena[0]) begin
 			if(addr[14]) begin
 				if(ulap_group) {ulap_mono,ulap_ena} <= din[1:0];
 					else palette[pal_addr] <= din;
@@ -318,7 +318,7 @@ always @(posedge clk_sys) begin
 				endcase
 			end
 		end
-		if(addr[7:0] == 'hFF) {tmx_using_ff, tmx_ena, tmx_cfg} <= {1'b1, |din[2:0], din[5:0]};
+		if((addr[7:0] == 'hFF) & ulap_tmx_ena[1]) {tmx_using_ff, tmx_ena, tmx_cfg} <= {1'b1, |din[2:0], din[5:0]};
 	end
 end
 

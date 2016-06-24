@@ -55,7 +55,7 @@ module mist_io #(parameter STRLEN=0, parameter PS2DIV=100)
 	output      [1:0] switches,
 	output            scandoubler_disable,
 
-	output reg [7:0]  status,
+	output reg [31:0] status,
 
 	// SD config
 	input             sd_conf,
@@ -83,9 +83,7 @@ module mist_io #(parameter STRLEN=0, parameter PS2DIV=100)
 	output reg        ps2_mouse_data,
 
 	// ARM -> FPGA download
-	input             ioctl_force_erase,
 	output reg        ioctl_download = 0, // signal indicating an active download
-	output reg        ioctl_erasing = 0,  // signal indicating an active erase
 	output reg  [7:0] ioctl_index,        // menu index used to upload the file
 	output reg        ioctl_wr = 0,
 	output reg [24:0] ioctl_addr,
@@ -217,7 +215,7 @@ always@(posedge SPI_SCK or posedge CONF_DATA0) begin
 							ps2_kbd_wptr <= ps2_kbd_wptr + 1'd1;
 						end
 				
-					8'h15: status <= spi_dout;
+					8'h15: status[7:0] <= spi_dout;
 				
 					// send SD config IO -> FPGA
 					// flag that download begins
@@ -253,6 +251,9 @@ always@(posedge SPI_SCK or posedge CONF_DATA0) begin
 
 					// send image info
 					8'h1d: if(byte_cnt<5) img_size[(byte_cnt-1)<<3 +:8] <= spi_dout;
+
+					// status, 32bit version
+					8'h1e: if(byte_cnt<5) status[(byte_cnt-1)<<3 +:8] <= spi_dout;
 					default: ;
 				endcase
 			end
@@ -465,16 +466,8 @@ always@(posedge SPI_SCK, posedge SPI_SS2) begin
 	end
 end
 
-reg  [24:0] erase_mask;
-wire [24:0] next_erase = (ioctl_addr + 1'd1) & erase_mask;
-
 always@(posedge clk_sys) begin
 	reg        rclkD, rclkD2;
-	reg        old_force = 0;
-	reg  [5:0] erase_clk_div;
-	reg [24:0] end_addr;
-	reg        erase_trigger = 0;
-	reg [24:0] saved_addr;
 
 	rclkD    <= rclk;
 	rclkD2   <= rclkD;
@@ -484,33 +477,6 @@ always@(posedge clk_sys) begin
 		ioctl_dout <= data_w;
 		ioctl_addr <= addr_w;
 		ioctl_wr   <= 1;
-	end
-
-	if(ioctl_download) begin
-		old_force     <= 0;
-		ioctl_erasing <= 0;
-		erase_trigger <= !ioctl_index;
-	end else begin
-
-		old_force <= ioctl_force_erase;
-		if((ioctl_force_erase & ~old_force) | erase_trigger) begin
-			erase_trigger <= 0;
-			ioctl_addr    <= 25'h187FFF;
-			erase_mask    <= 25'hFFFFFF;
-			end_addr      <= 25'h1C0000;
-			erase_clk_div <= 1;
-			ioctl_erasing <= 1;
-		end else if(ioctl_erasing) begin
-			erase_clk_div <= erase_clk_div + 1'd1;
-			if(!erase_clk_div) begin
-				if(next_erase == end_addr) ioctl_erasing <= 0;
-				else begin
-					ioctl_addr <= next_erase;
-					ioctl_dout <= 0;
-					ioctl_wr   <= 1;
-				end
-			end
-		end
 	end
 end
 

@@ -56,10 +56,19 @@ module zxspectrum
 );
 `default_nettype none
 
-assign LED = ~(ioctl_erasing | ioctl_download | tape_led);
+assign LED = ~(ioctl_download | tape_led);
 
 `include "build_id.v"
-localparam CONF_STR = {"SPECTRUM;;S0,TRDIMGDSKMGT,Load Disk;F1,TAPCSW,Load Tape;O6,Fast tape load,On,Off;O4,Model,Sinclair,Pentagon;O5,Feature,ZX48/P1024,ZX128/P128;O7,ULA+ & Timex,Enable,Disable;V0,v3.20.",`BUILD_DATE};
+localparam CONF_STR = {
+	"SPECTRUM;;",
+	"S0,TRDIMGDSKMGT,Load Disk;",
+	"F1,TAPCSW,Load Tape;",
+	"O6,Fast tape load,On,Off;",
+	"O89,Video timings,ULA-48,ULA-128,Pentagon;",
+	"OAB,Memory,128K,512K,1024K,48K;",
+	"OCD,Features,ULA+ & Timex,ULA+,Timex,None;",
+	"V0,v3.20.",`BUILD_DATE
+};
 
 
 ////////////////////   CLOCKS   ///////////////////
@@ -156,7 +165,7 @@ wire  [7:0] joystick_1;
 wire  [1:0] buttons;
 wire  [1:0] switches;
 wire        scandoubler_disable;
-wire  [7:0] status;
+wire [31:0] status;
 
 wire [31:0] sd_lba;
 wire        sd_rd;
@@ -173,9 +182,7 @@ wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_dout;
 wire        ioctl_download;
-wire        ioctl_erasing;
 wire  [7:0] ioctl_index;
-reg         ioctl_force_erase = 0;
 
 mist_io #(.STRLEN($size(CONF_STR)>>3)) mist_io
 (
@@ -203,12 +210,12 @@ wire        nWR;
 wire        nRFSH;
 wire        nBUSACK;
 wire        nINT;
-wire        nBUSRQ = ~(ioctl_download | ioctl_erasing);
-wire        reset  = buttons[1] | status[0] | cold_reset | warm_reset | test_reset;
+wire        nBUSRQ = ~ioctl_download;
+wire        reset  = buttons[1] | status[0] | cold_reset | warm_reset | shdw_reset;
 
 wire        cold_reset =((mod[2:1] == 1) & Fn[11]) | init_reset;
 wire        warm_reset = (mod[2:1] == 2) & Fn[11];
-wire        test_reset = (mod[2:1] == 3) & Fn[11];
+wire        shdw_reset = (mod[2:1] == 3) & Fn[11];
 
 wire        io_wr = ~nIORQ & ~nWR & nM1;
 wire        io_rd = ~nIORQ & ~nRD & nM1;
@@ -259,11 +266,10 @@ end
 
 reg init_reset = 1;
 always @(posedge clk_sys) begin
-	reg old_erasing;
-	old_erasing <= ioctl_erasing;
-	if(old_erasing & ~ioctl_erasing) init_reset <= 0;
+	reg old_download;
+	old_download <= ioctl_download;
+	if(old_download & ~ioctl_download) init_reset <= 0;
 end
-
 
 reg NMI;
 always @(posedge clk_sys) begin
@@ -271,8 +277,8 @@ always @(posedge clk_sys) begin
 
 	old_F11 <= Fn[11];
 
-	if(reset | ~Fn[11] | plusd_mem | mf128_mem) NMI <= 0;
-	else if(~old_F11 & Fn[11] & (mod[2:1] == 0) & Fn[11] & (mod[0] | plusd_en)) NMI <= 1;
+	if(reset | ~Fn[11] | (m1 & (addr == 'h66))) NMI <= 0;
+	else if(~old_F11 & Fn[11] & (mod[2:1] == 0) & (mod[0] | plusd_en)) NMI <= 1;
 end
 
 
@@ -284,14 +290,13 @@ reg         ram_we;
 reg         ram_rd;
 wire  [7:0] ram_dout;
 wire        ram_ready;
-wire        p1024 = status[4] & ~status[5];
 
 always_comb begin
 	casex({dma, tape_req, plusd_mem, mf128_mem, addr[15:14]})
 		'b1XXX_XX: ram_addr = ioctl_addr;
 		'b01XX_XX: ram_addr = tape_addr;
-		'b001X_00: ram_addr = {5'h18, 2'b00   , addr[13:0]};
-		'b0001_00: ram_addr = {5'h18, 2'b01   , addr[13:0]};
+		'b001X_00: ram_addr = {5'h18, 2'b00,    addr[13:0]};
+		'b0001_00: ram_addr = {5'h18, 2'b01,    addr[13:0]};
 		'b0000_00: ram_addr = {5'h17, page_rom, addr[13:0]};
 		'b00XX_01: ram_addr = {       3'd5,     addr[13:0]};
 		'b00XX_10: ram_addr = {       3'd2,     addr[13:0]};
@@ -344,27 +349,47 @@ vram vram
     .q(vram_dout)
 );
 
+reg        m48;
+reg        m1024;
+reg        m512;
 reg        page_scr_copy;
-reg        test_rom;
+reg        shadow_rom;
 reg  [7:0] page_reg;
-wire       page_disable = ~p1024 & page_reg[5];
-wire [1:0] page_rom     = {~trdos_en & ~test_rom, page_reg[4] & ~test_rom};
+wire       page_disable = m48 | (~m1024 & page_reg[5]);
 wire       page_scr     = page_reg[3];
-wire [5:0] page_ram     = {{3{p1024}} & page_reg[7:5], page_reg[2:0]};
-wire       page_write   = ~nIORQ & ~nWR & nM1 & ~addr[15] & ~addr[1] & ~page_disable;
+wire [5:0] page_ram     = {{m512,m512,m1024} & page_reg[7:5], page_reg[2:0]};
+wire       page_write   = ~addr[15] & ~addr[1] & ~page_disable;
+
+reg  [1:0] page_rom;
+always_comb begin
+	casex({shadow_rom, trdos_en, m48 | page_reg[4]})
+		'b1XX: page_rom <= 0;
+		'b01X: page_rom <= 1;
+		'b000: page_rom <= 2;
+		'b001: page_rom <= 3;
+	endcase
+end
 
 always @(posedge clk_sys) begin
-	reg old_wr;
-	old_wr <= page_write;
+	reg old_wr, old_m1;
+	old_wr <= io_wr;
+	old_m1 <= m1;
 
 	if(reset) begin
 		page_scr_copy <= 0;
 		page_reg <= 0;
-		test_rom <= test_reset;
+		shadow_rom <= shdw_reset;
+		m48   <= (status[11:10] == 3);
+		m512  <= (status[11:10] == 1) | (status[11:10] == 2);
+		m1024 <= (status[11:10] == 2);
 	end else begin
-		if(page_write & ~old_wr) begin
-			page_reg <= cpu_dout;
-			if(~plusd_mem) page_scr_copy <= page_reg[3];
+		if(m1 && ~old_m1 && addr[15:14]) shadow_rom <= 0;
+
+		if(io_wr & ~old_wr) begin
+			if(page_write) begin
+				page_reg <= cpu_dout;
+				if(~plusd_mem) page_scr_copy <= page_reg[3];
+			end
 		end
 	end
 end
@@ -441,8 +466,18 @@ wire  [7:0] vram_dout;
 wire  [7:0] port_ff;
 wire        ulap_sel;
 wire  [7:0] ulap_dout;
-wire        ulap_tmx_ena = ~(trdos_en | status[7]);
-video video(.*, .din(cpu_dout), .page_ram(page_ram[2:0]), .mZX(~status[4]), .m128(status[5]));
+wire  [1:0] ulap_tmx_ena = {~status[12], ~status[13]} & {~trdos_en, ~trdos_en};
+
+reg mZX, m128;
+always_comb begin
+	case(status[9:8])
+		      0: {mZX, m128} <= 2'b10;
+		      1: {mZX, m128} <= 2'b11;
+		default: {mZX, m128} <= 2'b00;
+	endcase
+end
+
+video video(.*, .din(cpu_dout), .page_ram(page_ram[2:0]));
 
 
 ////////////////////   HID   ////////////////////
@@ -453,7 +488,7 @@ keyboard kbd( .* );
 
 reg         mouse_sel;
 wire  [7:0] mouse_data;
-mouse mouse( .*, .addr(addr[10:8]), .sel(), .dout(mouse_data));
+mouse mouse( .*, .reset(cold_reset), .addr(addr[10:8]), .sel(), .dout(mouse_data));
 
 always @(posedge clk_sys) begin
 	if(joystick_0[5:0] | joystick_1[5:0]) mouse_sel <= 0;
@@ -503,7 +538,7 @@ wire  [7:0] fdd_dout = (addr[7] & ~plusd_en) ? {fdd_intrq, fdd_drq, 6'h3F} : wd_
 // 1) all +D ports (except page out port) are disabled if +D memory isn't paged in.
 // 2) only possible way to page in is through hooks at h08, h3A, h66 addresses.
 //
-// This may break compatibility with some apps written specifically to +D using 
+// This may break compatibility with some apps written specifically for +D using 
 // direct port access (badly written apps), but won't introduce
 // incompatibilities with +D unaware apps.
 //
@@ -543,7 +578,8 @@ always @(posedge clk_sys) begin
 		if(~old_wr & io_wr & fdd_sel & addr[7]) {fdd_side, fdd_reset, fdd_drive1} <= {~cpu_dout[4], ~cpu_dout[2], !cpu_dout[1:0]};
 		if(m1 && ~old_m1) begin
 			if(addr[15:14]) trdos_en <= 0;
-				else if(((addr[13:8] == 'h3D) /*| (addr == 'h66)*/) & page_rom[0] & fdd_ready) trdos_en <= 1;
+				else if((addr[13:8] == 'h3D) & page_rom[0]) trdos_en <= 1;
+				else if(~mod[0] & (addr == 'h66)) trdos_en <= 1;
 		end
 	end
 end
