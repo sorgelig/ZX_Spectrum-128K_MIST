@@ -65,6 +65,7 @@ localparam CONF_STR = {
 	"F1,TAPCSW,Load Tape;",
 	"O6,Fast tape load,On,Off;",
 	"O89,Video timings,ULA-48,ULA-128,Pentagon;",
+	"OEF,Scanlines,None,25%,50%,75%;",
 	"OAB,Memory,128K,512K,1024K,48K;",
 	"OCD,Features,ULA+ & Timex,ULA+,Timex,None;",
 	"V0,v3.20.",`BUILD_DATE
@@ -477,7 +478,7 @@ always_comb begin
 	endcase
 end
 
-video video(.*, .din(cpu_dout), .page_ram(page_ram[2:0]));
+video video(.*, .din(cpu_dout), .page_ram(page_ram[2:0]), .scanlines(status[15:14]));
 
 
 ////////////////////   HID   ////////////////////

@@ -61,6 +61,7 @@ module video
 	input   [2:0] page_ram,
 	input   [2:0] border_color,
 	input         scandoubler_disable,
+	input   [1:0] scanlines,
 
 	// OSD IO interface
 	input         SPI_SCK,
@@ -104,7 +105,7 @@ scandoubler scandoubler
 	.ce_x2(ce_28m),
 	.ce_x1(ce_7mp | ce_7mn),
 
-	.scanlines(0),
+	.scanlines(scanlines),
 
 	.hs_in(HSync),
 	.vs_in(VSync),
