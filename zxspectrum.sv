@@ -69,7 +69,7 @@ localparam CONF_STR = {
 	"O6,Fast tape load,On,Off;",
 	"O89,Video timings,ULA-48,ULA-128,Pentagon;",
 	"OFG,Scanlines,None,25%,50%,75%;",
-	"OAC,Memory,Standard 128K,Pentagon 512K,Pentagon 1024K, Profi 1024K,Scorpion 1024K,Standard 48K;",
+	"OAC,Memory,Standard 128K,Pentagon 512K,Profi 1024K,Standard 48K;",
 	"ODE,Features,ULA+ & Timex,ULA+,Timex,None;",
 	"V,v3.30.",`BUILD_DATE
 };
@@ -263,7 +263,7 @@ always_comb begin
 		'b1X000011X: cpu_din = (addr[14] ? sound_data : 8'hFF);
 		'b1X0000101: cpu_din = ulap_dout;
 		'b1X0000100: cpu_din = port_ff;
-		'b1X00000XX: cpu_din = {1'b1, tape_in, 1'b1, key_data[4:0]};
+		'b1X00000XX: cpu_din = {1'b1, ~tape_in, 1'b1, key_data[4:0]};
 		'b1X1XXXXXX: cpu_din = 8'hFF;
 	endcase
 end
@@ -282,7 +282,7 @@ always @(posedge clk_sys) begin
 	old_F11 <= Fn[11];
 
 	if(reset | ~Fn[11] | (m1 & (addr == 'h66))) NMI <= 0;
-	else if(~old_F11 & Fn[11] & (mod[2:1] == 0) & (mod[0] | plusd_en)) NMI <= 1;
+	else if(~old_F11 & Fn[11] & (mod[2:1] == 0)) NMI <= 1;
 end
 
 
@@ -354,15 +354,15 @@ vram vram
 );
 
 reg        zx48;
-reg        p1024,pf1024,sc1024;
 reg        p512;
+reg        pf1024;
 reg        page_scr_copy;
 reg        shadow_rom;
 reg  [7:0] page_reg;
-wire       page_disable = zx48 | (~p1024 & page_reg[5]);
+wire       page_disable = zx48 | page_reg[5];
 wire       page_scr     = page_reg[3];
 wire [5:0] page_ram     = {page_128k, page_reg[2:0]};
-wire       page_write   = ~addr[15] & (~sc1024 | addr[14]) & ~addr[1] & ~page_disable;
+wire       page_write   = ~addr[15] & ~addr[1] & ~page_disable;
 reg  [2:0] page_128k;
 
 reg  [1:0] page_rom;
@@ -382,26 +382,23 @@ always @(posedge clk_sys) begin
 
 	if(reset) begin
 		page_scr_copy <= 0;
-		page_reg  <= 0;
-		page_128k <= 0;
+		page_reg   <= 0;
+		page_128k  <= 0;
 		shadow_rom <= shdw_reset & ~plusd_en;
-		zx48  <= (status[12:10] == 5);
-		p512  <= (status[12:10] == 1) | (status[12:10] == 2);
-		p1024 <= (status[12:10] == 2);
-		pf1024<= (status[12:10] == 3);
-		sc1024<= (status[12:10] == 4);
+		p512  <= (status[12:10] == 1);
+		pf1024<= (status[12:10] == 2);
+		zx48  <= (status[12:10] == 3);
 	end else begin
 		if(m1 && ~old_m1 && addr[15:14]) shadow_rom <= 0;
+		if(m1 && ~old_m1 && ~plusd_en && ~mod[0] && (addr == 'h66)) shadow_rom <= 1;
 
 		if(io_wr & ~old_wr) begin
 			if(page_write) begin
 				page_reg  <= cpu_dout;
-				if(p1024) page_128k[2]   <= cpu_dout[5];
 				if(p512)  page_128k[1:0] <= cpu_dout[7:6];
 				if(~plusd_mem) page_scr_copy <= page_reg[3];
 			end
 			if(pf1024 & (addr == 'hDFFD)) page_128k <= cpu_dout[2:0];
-			if(sc1024 & (addr == 'h1FFD)) page_128k <= {cpu_dout[7:6],cpu_dout[4]};
 		end
 	end
 end
@@ -412,7 +409,7 @@ reg [2:0] border_color;
 reg       ear_out;
 reg       mic_out;
 
-wire ula_we = ~addr[0] & ~(trdos_en | tape_turbo | nIORQ) & ~nWR & nM1;
+wire ula_we = ~addr[0] & ~(tape_turbo | nIORQ) & ~nWR & nM1;
 always @(posedge clk_sys) begin
 	reg old_we;
 	old_we <= ula_we;
@@ -591,7 +588,7 @@ always @(posedge clk_sys) begin
 		if(m1 && ~old_m1) begin
 			if(addr[15:14]) trdos_en <= 0;
 				else if((addr[13:8] == 'h3D) & page_rom[0]) trdos_en <= 1;
-				else if(~mod[0] & (addr == 'h66)) trdos_en <= 1;
+				//else if(~mod[0] & (addr == 'h66)) trdos_en <= 1;
 		end
 	end
 end
