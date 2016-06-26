@@ -4,7 +4,7 @@ Some verilog models from Till Harbaum [Spectrum](https://github.com/mist-devel/m
 
 ### Features:
 - Fully functional ZX Spectrum 48K, 128K and Pentagon 128 with correct CPU and Video timings.
-- Up to 1024KB for Pentagon mode (Pentagon 1024SL v2.x compatible 7FFD port).
+- Pentagon 512K and Profi 1024K memory interfaces.
 - Turbo 7MHz, 14MHz, 28MHz, 56MHz.
 - ULA+ v1.1 programmable palettes with extended Timex control.
 - Timex HiColor, HiRes modes.
@@ -16,7 +16,7 @@ Some verilog models from Till Harbaum [Spectrum](https://github.com/mist-devel/m
 - Native TAP with turbo loading. Fast loading for TAP and CSW.
 - Kempston Mouse and Joystick.
 
-**Core requires MiST firmware update to build 2016/06/19 or newer!**
+**Core requires MiST firmware update to build 2016/06/26 or newer!**
 
 ### Installation:
 Copy the *.rbf file at the root of the SD card. You can rename the file to core.rbf if you want the MiST to load it automatically at startup.
@@ -57,10 +57,9 @@ You can control CPU speed by following keys:
 
 It's useful to switch to maximum speed when you are loading tape in normal mode. Due to SDRAM speed limitation 28MHz and 56MHz speeds include wait states, so effective CPU speed is lower than nominal.
 
-### Configurations:
-Model **Sinclair** + Feature **48K/1024K** = **ZX Spectrum 48K** video timings. Model **Sinclair** + Feature **128K** = **ZX Spectrum 128K** video timings. 128KB memory available for both Sinclair features.
-
-Model **Pentagon** + Feature **128K** = **Pentagon 128** video timings with 128KB memory. Model **Pentagon** + Feature **128K/1024K** = **Pentagon 128** video timings with **1024KB** available. Bits 7-5 of port 7FFD provide access to additional 896KB of RAM (Bit 5 doesn't lock 7FFD port).
+### Memory Configurations with extra RAM:
+- **Pentagon 512K** uses bits 6 and 7 in port 7FFD to access additional memory.
+- **Profi 1024K** uses bits 0-2 in port DFFD to access additional memory.
 
 ### Mouse and Joystick:
 Kempston mouse has no strict convention which bit (D0 or D1) reflects a main button. After each reset, the first button pressed on mouse (left or right buttons only) will be represented by bit D0 (other button will be represented by bit D1). So, if you are not satisfied by mouse button map, then simply press reset and then press other button first.
@@ -84,8 +83,8 @@ You can enter Multiface ROM using **RShift+F11**. Multiface 128 includes preload
 ### Special Keys:
 - Ctrl+F11 - warm reset
 - Alt+F11 - cold reset will disk unload
-- Ctrl+Alt+F11 - reset to Test ROM
-- F11 - enter +D snapshot menu
+- Ctrl+Alt+F11 - reset to ROM0 menu
+- F11 - enter +D snapshot menu (or ROM0 menu if IMG/MGT not mounted)
 - RShift+F11 - enter Multiface 128 menu
 - F12 - OSD menu
 
