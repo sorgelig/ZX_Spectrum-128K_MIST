@@ -35,6 +35,9 @@ module zxspectrum
    output        AUDIO_L,
    output        AUDIO_R,
 
+   output        UART_TX,
+   input         UART_RX,
+
    input         SPI_SCK,
    output        SPI_DO,
    input         SPI_DI,
@@ -71,7 +74,7 @@ localparam CONF_STR = {
 	"OFG,Scanlines,None,25%,50%,75%;",
 	"OAC,Memory,Standard 128K,Pentagon 512K,Profi 1024K,Standard 48K;",
 	"ODE,Features,ULA+ & Timex,ULA+,Timex,None;",
-	"V,v3.30.",`BUILD_DATE
+	"V,v3.31.",`BUILD_DATE
 };
 
 
@@ -414,7 +417,8 @@ always @(posedge clk_sys) begin
 	reg old_we;
 	old_we <= ula_we;
 
-	if(ula_we & ~old_we) begin
+	if(reset) {ear_out, mic_out} <= 2'b00;
+	else if(ula_we & ~old_we) begin
 		border_color <= cpu_dout[2:0];
 		ear_out <= cpu_dout[4]; 
 		mic_out <= cpu_dout[3];
@@ -642,7 +646,9 @@ wire        tape_turbo;
 wire  [7:0] tape_dout;
 wire        tape_led;
 wire        tape_active;
-reg         tape_in;
+wire        tape_loaded;
+wire        tape_in;
+wire        tape_vin;
 
 smart_tape tape
 (
@@ -653,9 +659,10 @@ smart_tape tape
 	.pause(Fn[1]),
 	.prev(Fn[2]),
 	.next(Fn[3]),
-	.audio_out(tape_in),
+	.audio_out(tape_vin),
 	.led(tape_led),
 	.active(tape_active),
+	.available(tape_loaded),
 	.req_hdr((reg_DE == 'h11) & !reg_A),
 
 	.buff_rd_en(~nRFSH),
@@ -672,5 +679,9 @@ smart_tape tape
 	.dout_en(tape_dout_en),
 	.dout(tape_dout)
 );
+
+assign UART_TX = 1;
+assign tape_in = tape_loaded ? tape_vin : ~UART_RX;
+
 
 endmodule

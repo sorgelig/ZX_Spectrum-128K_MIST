@@ -73,6 +73,8 @@ set_location_assignment PIN_136 -to VGA_VS
 set_location_assignment PIN_119 -to VGA_HS
 set_location_assignment PIN_65 -to AUDIO_L
 set_location_assignment PIN_80 -to AUDIO_R
+set_location_assignment PIN_46 -to UART_TX
+set_location_assignment PIN_31 -to UART_RX
 set_location_assignment PIN_105 -to SPI_DO
 set_location_assignment PIN_88 -to SPI_DI
 set_location_assignment PIN_126 -to SPI_SCK
@@ -304,6 +306,7 @@ set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to VGA_VS
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to LED
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to AUDIO_L
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to AUDIO_R
+set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to UART_TX
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to SPI_DO
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to CONF_DATA0
 

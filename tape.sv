@@ -136,6 +136,7 @@ always @(posedge clk_sys) begin
 		blk_list <= '{default:0};
 		blk_num  <= 0;
 		rd_req   <= 0;
+		audio_out<= 1;
 	end else if(ce) begin
 
 		old_stdload <= stdload;
@@ -353,6 +354,7 @@ module smart_tape
 
 	output        led,
 	output        active,
+	output        available,
 
 	input         buff_rd_en,
 	output        buff_rd,
@@ -384,7 +386,6 @@ reg  [7:0] tape_stub[14] = '{'h18, 'hFE, 'h2E, 'hFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
 wire [7:0] tape_dout;
 
 wire byte_ready;
-wire available;
 reg  byte_wait;
 reg  stdload;
 reg  stdhdr;
