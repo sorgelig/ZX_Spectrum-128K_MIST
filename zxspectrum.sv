@@ -172,6 +172,7 @@ wire  [7:0] joystick_1;
 wire  [1:0] buttons;
 wire  [1:0] switches;
 wire        scandoubler_disable;
+wire        ypbpr;
 wire [31:0] status;
 
 wire [31:0] sd_lba;

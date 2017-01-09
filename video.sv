@@ -61,6 +61,7 @@ module video
 	input   [2:0] page_ram,
 	input   [2:0] border_color,
 	input         scandoubler_disable,
+	input         ypbpr,
 	input   [1:0] scanlines,
 
 	// OSD IO interface
@@ -120,9 +121,23 @@ scandoubler scandoubler
 	.b_out(VGA_Bd)
 );
 
-assign {VGA_R,  VGA_G,  VGA_B,  VGA_VS,  VGA_HS          } = scandoubler_disable ?
-       {VGA_Rs, VGA_Gs, VGA_Bs, 1'b1,    ~(HSync ^ VSync)} :
-       {VGA_Rd, VGA_Gd, VGA_Bd, ~vsyncd, ~hsyncd         };
+video_mixer video_mixer
+(
+	.*,
+	.ypbpr_full(1),
+
+	.r_i({VGA_Rs, VGA_Rs[5:4]}),
+	.g_i({VGA_Gs, VGA_Gs[5:4]}),
+	.b_i({VGA_Bs, VGA_Bs[5:4]}),
+	.hsync_i(HSync),
+	.vsync_i(VSync),
+
+	.r_p({VGA_Rd, VGA_Rd[5:4]}),
+	.g_p({VGA_Gd, VGA_Gd[5:4]}),
+	.b_p({VGA_Bd, VGA_Bd[5:4]}),
+	.hsync_p(hsyncd),
+	.vsync_p(vsyncd)
+);
 
 // Pixel clock
 reg [8:0] hc = 0;

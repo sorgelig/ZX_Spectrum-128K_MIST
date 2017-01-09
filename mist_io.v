@@ -54,6 +54,7 @@ module mist_io #(parameter STRLEN=0, parameter PS2DIV=100)
 	output      [1:0] buttons,
 	output      [1:0] switches,
 	output            scandoubler_disable,
+	output            ypbpr,
 
 	output reg [31:0] status,
 
@@ -104,6 +105,7 @@ assign img_mounted  = mount_strobe;
 assign buttons = but_sw[1:0];
 assign switches = but_sw[3:2];
 assign scandoubler_disable = but_sw[4];
+assign ypbpr = but_sw[5];
 
 wire [7:0] spi_dout = { sbuf, SPI_DI};
 
