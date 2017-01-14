@@ -74,7 +74,7 @@ localparam CONF_STR = {
 	"OFG,Scanlines,None,25%,50%,75%;",
 	"OAC,Memory,Standard 128K,Pentagon 512K,Profi 1024K,Standard 48K;",
 	"ODE,Features,ULA+ & Timex,ULA+,Timex,None;",
-	"V,v3.31.",`BUILD_DATE
+	"V,v3.32.",`BUILD_DATE
 };
 
 
@@ -681,8 +681,24 @@ smart_tape tape
 	.dout(tape_dout)
 );
 
+reg tape_loaded_reg = 0;
+always @(posedge clk_sys) begin
+	int timeout = 0;
+	
+	if(tape_loaded) begin
+		tape_loaded_reg <= 1;
+		timeout <= 100000000;
+	end else begin
+		if(timeout) begin
+			timeout <= timeout - 1;
+		end else begin
+			tape_loaded_reg <= 0;
+		end
+	end
+end
+
 assign UART_TX = 1;
-assign tape_in = tape_loaded ? tape_vin : ~UART_RX;
+assign tape_in = tape_loaded_reg ? tape_vin : ~UART_RX;
 
 
 endmodule
