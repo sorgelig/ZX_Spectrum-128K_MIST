@@ -1,6 +1,7 @@
 // ZX Spectrum for Altera DE1
 //
 // Copyright (c) 2009-2011 Mike Stirling
+// Copyright (c) 2015-2017 Sorgelig
 //
 // All rights reserved
 //
@@ -190,28 +191,28 @@ always @(negedge clk_sys) begin
 				end
 			8'h49 : begin // . <
 					keys[7][1] <= release_btn;
-					if(shift) keys[2][4] <= release_btn;
-						else keys[7][2] <= release_btn;
+					keys[2][4] <= release_btn | ~shift;
+					keys[7][2] <= release_btn |  shift;
 				end
 			8'h41 : begin // , >
 					keys[7][1] <= release_btn;
-					if(shift) keys[2][3] <= release_btn;
-						else keys[7][3] <= release_btn;
+					keys[2][3] <= release_btn | ~shift;
+					keys[7][3] <= release_btn |  shift;
 				end
 			8'h4A : begin // / ?
 					keys[7][1] <= release_btn;
-					if(shift) keys[0][3] <= release_btn;
-						else keys[0][4] <= release_btn;
+					keys[0][3] <= release_btn | ~shift;
+					keys[0][4] <= release_btn |  shift;
 				end
 			8'h4C : begin // ; :
 					keys[7][1] <= release_btn;
-					if(shift) keys[0][1] <= release_btn;
-						else keys[5][1] <= release_btn;
+					keys[0][1] <= release_btn | ~shift;
+					keys[5][1] <= release_btn |  shift;
 				end
 			8'h52 : begin // " '
 					keys[7][1] <= release_btn;
-					if(shift) keys[4][3] <= release_btn;
-						else keys[5][0] <= release_btn;
+					keys[4][3] <= release_btn | ~shift;
+					keys[5][0] <= release_btn |  shift;
 				end
 			8'h54 : begin // (
 					keys[7][1] <= release_btn;
@@ -223,13 +224,13 @@ always @(negedge clk_sys) begin
 				end
 			8'h4E : begin // - _
 					keys[7][1] <= release_btn;
-					if(shift) keys[4][0] <= release_btn;
-						else keys[6][3] <= release_btn;
+					keys[4][0] <= release_btn | ~shift;
+					keys[6][3] <= release_btn |  shift;
 				end
 			8'h55 : begin // = +
 					keys[7][1] <= release_btn;
-					if(shift) keys[6][2] <= release_btn;
-						else keys[6][1] <= release_btn;
+					keys[6][2] <= release_btn | ~shift;
+					keys[6][1] <= release_btn |  shift;
 				end
 			8'h0E : begin // '
 					keys[7][1] <= release_btn;
