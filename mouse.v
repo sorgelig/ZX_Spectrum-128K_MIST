@@ -66,7 +66,7 @@ always @(posedge clk_sys) begin
 		dy     <= 0;
 		button <= 0;
 		idle   <= 0;
-		swap    = 0;
+		swap   <= 0;
 	end else begin
 		old_clk <= ps2_mouse_clk;
 		if(old_clk & ~ps2_mouse_clk) begin

@@ -398,7 +398,7 @@ always @(posedge clk_sys) begin
 							byte_addr <= 0;
 							if(var_size) begin
 								if(~format) edsk_addr <= edsk_start;
-								spt_addr  <= (side ? spt_size>>1 : 8'd0) + disk_track;
+								if(EDSK) spt_addr  <= (side ? spt_size>>1 : 8'd0) + disk_track;
 								state     <= STATE_SEARCH_1;
 							end else begin
 								if(!wdreg_sector || (wdreg_sector > sectors_per_track)) begin
