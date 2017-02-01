@@ -2,6 +2,7 @@
 // scandoubler.v
 // 
 // Copyright (c) 2015 Till Harbaum <till@harbaum.org> 
+// Copyright (c) 2017 Sorgelig
 // 
 // This source file is free software: you can redistribute it and/or modify 
 // it under the terms of the GNU General Public License as published 
@@ -18,144 +19,124 @@
 
 // TODO: Delay vsync one line
 
-module scandoubler
+module scandoubler #(parameter LENGTH, parameter HALF_DEPTH)
 (
 	// system interface
-	input            clk_sys,
-	input            ce_x2,
-	input            ce_x1,
-
-	// scanlines (00-none 01-25% 10-50% 11-75%)
-	input      [1:0] scanlines,
+	input             clk_sys,
+	input             ce_pix,
+	input             hq2x,
 
 	// shifter video interface
-	input            hs_in,
-	input            vs_in,
-	input      [5:0] r_in,
-	input      [5:0] g_in,
-	input      [5:0] b_in,
+	input             hs_in,
+	input             vs_in,
+	input             line_start,
+
+	input  [DWIDTH:0] r_in,
+	input  [DWIDTH:0] g_in,
+	input  [DWIDTH:0] b_in,
+	input             mono,
 
 	// output interface
-	output reg       hs_out,
-	output reg       vs_out,
-	output reg [5:0] r_out,
-	output reg [5:0] g_out,
-	output reg [5:0] b_out
+	output reg        hs_out,
+	output            vs_out,
+	output [DWIDTH:0] r_out,
+	output [DWIDTH:0] g_out,
+	output [DWIDTH:0] b_out
 );
 
-// --------------------- create output signals -----------------
-// latch everything once more to make it glitch free and apply scanline effect
-reg scanline;
-always @(posedge clk_sys) begin
-	if(ce_x2) begin
-		hs_out <= hs_sd;
-		vs_out <= vs_in;
 
-		// reset scanlines at every new screen
-		if(vs_out != vs_in) scanline <= 0;
+localparam DWIDTH = HALF_DEPTH ? 2 : 5;
 
-		// toggle scanlines at begin of every hsync
-		if(hs_out && !hs_sd) scanline <= !scanline;
+assign vs_out = vs_in;
 
-		// if no scanlines or not a scanline
-		if(!scanline || !scanlines) begin
-			r_out <= sd_out[17:12];
-			g_out <= sd_out[11:6];
-			b_out <= sd_out[5:0];
-		end else begin
-			case(scanlines)
-				1: begin // reduce 25% = 1/2 + 1/4
-					r_out <= {1'b0, sd_out[17:13]} + {2'b00, sd_out[17:14]};
-					g_out <= {1'b0, sd_out[11:7] } + {2'b00, sd_out[11:8] };
-					b_out <= {1'b0, sd_out[5:1]  } + {2'b00, sd_out[5:2]  };
-				end
+reg ce_x1, ce_x4;
+always @(negedge clk_sys) begin
+	reg old_ce;
+	reg [7:0] cnt   = 0;
+	reg [7:0] pixsz2, pixsz4 = 0;
 
-				2: begin // reduce 50% = 1/2
-					r_out <= {1'b0, sd_out[17:13]};
-					g_out <= {1'b0, sd_out[11:7]};
-					b_out <= {1'b0, sd_out[5:1]};
-				end
+	old_ce <= ce_pix;
+	if(~&cnt) cnt <= cnt + 1'd1;
 
-				3: begin // reduce 75% = 1/4
-					r_out <= {2'b00, sd_out[17:14]};
-					g_out <= {2'b00, sd_out[11:8]};
-					b_out <= {2'b00, sd_out[5:2]};
-				end
-			endcase
-		end
+	ce_x4 <= 0;
+	ce_x1 <= 0;
+	if(~old_ce & ce_pix) begin
+		pixsz2 <= {1'b0,  cnt[7:1]};
+		pixsz4 <= {2'b00, cnt[7:2]};
+		ce_x1 <= 1;
+		ce_x4 <= 1;
+		cnt   <= 0;
 	end
+
+	if(cnt == pixsz4)          ce_x4 <= 1;
+	if(cnt == pixsz2)          ce_x4 <= 1;
+	if(cnt == (pixsz2+pixsz4)) ce_x4 <= 1;
 end
 
-// scan doubler output register
-reg [17:0] sd_out;
+localparam AWIDTH = `BITS_TO_FIT(LENGTH);
+Hq2x #(.LENGTH(LENGTH), .HALF_DEPTH(HALF_DEPTH)) Hq2x
+(
+	.clk(clk_sys),
+	.ce_x4(ce_x4),
+	.inputpixel({b_in,g_in,r_in}),
+	.mono(mono),
+	.disable_hq2x(~hq2x),
+	.reset_frame(vs_in),
+	.reset_line(hs_in | line_start),
+	.read_y(sd_line),
+	.read_x(sd_h[AWIDTH+1:0]),
+	.outpixel({b_out,g_out,r_out})
+);
 
-// ==================================================================
-// ======================== the line buffers ========================
-// ==================================================================
-
-// 2 lines of 1024 pixels 3*4 bit RGB
-(* ramstyle = "no_rw_check" *) reg [17:0] sd_buffer[2047:0];
-
-// use alternating sd_buffers when storing/reading data   
-reg        line_toggle;
-
-// total hsync time (in 16MHz cycles), hs_total reaches 1024
-reg  [9:0] hs_max;
-reg  [9:0] hs_rise;
-reg  [9:0] hcnt;
+reg [10:0] sd_h;
+reg  [1:0] sd_line;
+wire       ls_in = hs_in | line_start;
 
 always @(posedge clk_sys) begin
-	reg hsD, vsD;
+
+	reg [11:0] hs_max,hs_rise,hs_ls;
+	reg [10:0] hcnt;
+	reg [11:0] sd_hcnt;
+
+	reg hs, hs2, vs, ls;
 
 	if(ce_x1) begin
-		hsD <= hs_in;
+		hs <= hs_in;
+		ls <= ls_in;
+
+		if(ls && !ls_in) hs_ls <= {hcnt,1'b1};
 
 		// falling edge of hsync indicates start of line
-		if(hsD && !hs_in) begin
-			hs_max <= hcnt;
+		if(hs && !hs_in) begin
+			hs_max <= {hcnt,1'b1};
 			hcnt <= 0;
+			if(ls && !ls_in) hs_ls <= {10'd0,1'b1};
 		end else begin
 			hcnt <= hcnt + 1'd1;
 		end
 
 		// save position of rising edge
-		if(!hsD && hs_in) hs_rise <= hcnt;
+		if(!hs && hs_in) hs_rise <= {hcnt,1'b1};
 
-		vsD <= vs_in;
-		if(vsD != vs_in) line_toggle <= 0;
-
-		// begin of incoming hsync
-		if(hsD && !hs_in) line_toggle <= !line_toggle;
-
-		sd_buffer[{line_toggle, hcnt}] <= {r_in, g_in, b_in};
+		vs <= vs_in;
+		if(vs && ~vs_in) sd_line <= 0;
 	end
-end
 
-// ==================================================================
-// ==================== output timing generation ====================
-// ==================================================================
-
-reg  [9:0] sd_hcnt;
-reg        hs_sd;
-
-// timing generation runs 32 MHz (twice the input signal analysis speed)
-always @(posedge clk_sys) begin
-	reg hsD;
-
-	if(ce_x2) begin
-		hsD <= hs_in;
+	if(ce_x4) begin
+		hs2 <= hs_in;
 
 		// output counter synchronous to input and at twice the rate
 		sd_hcnt <= sd_hcnt + 1'd1;
-		if(hsD && !hs_in)     sd_hcnt <= hs_max;
+		sd_h    <= sd_h    + 1'd1;
+		if(hs2 && !hs_in)     sd_hcnt <= hs_max;
 		if(sd_hcnt == hs_max) sd_hcnt <= 0;
 
 		// replicate horizontal sync at twice the speed
-		if(sd_hcnt == hs_max)  hs_sd <= 0;
-		if(sd_hcnt == hs_rise) hs_sd <= 1;
+		if(sd_hcnt == hs_max)  hs_out <= 0;
+		if(sd_hcnt == hs_rise) hs_out <= 1;
 
-		// read data from line sd_buffer
-		sd_out <= sd_buffer[{~line_toggle, sd_hcnt}];
+		if(sd_hcnt == hs_ls)   sd_h    <= 0;
+		if(sd_hcnt == hs_ls)   sd_line <= sd_line + 1'd1;
 	end
 end
 

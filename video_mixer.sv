@@ -1,12 +1,51 @@
+//
+//
+// Copyright (c) 2017 Sorgelig
+//
+// This program is GPL Licensed. See COPYING for the full license.
+//
+//
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 `timescale 1ns / 1ps
 
-// Core should provide as much color resolution as possible with normalized 0-255 range
-// this module will reduce color resolution to 6 bits only at final stage.
+//
+// LINE_LENGTH: Length of  display line in pixels
+//              Usually it's length from HSync to HSync.
+//              May be less if line_start is used.
+//
+// HALF_DEPTH:  If =1 then color dept is 3 bits per component
+//              For half depth 6 bits monochrome is available with
+//              mono signal enabled and color = {G, R}
 
 module video_mixer
+#(
+	parameter LINE_LENGTH  = 768,
+	parameter HALF_DEPTH   = 0,
+
+	parameter OSD_COLOR    = 3'd4,
+	parameter OSD_X_OFFSET = 10'd0,
+	parameter OSD_Y_OFFSET = 10'd0
+)
 (
+	// master clock
+	// it should be multiple by (ce_pix*4).
+	input        clk_sys,
+	
+	// Pixel clock or clock_enable (both are accepted).
+	input        ce_pix,
+
+	// OSD SPI interface
+	input        SPI_SCK,
+	input        SPI_SS3,
+	input        SPI_DI,
+
+	// scanlines (00-none 01-25% 10-50% 11-75%)
+	input  [1:0] scanlines,
+
 	// 0 = HVSync 31KHz, 1 = CSync 15KHz
 	input        scandoubler_disable,
+	input        hq2x,
 
 	// YPbPr always uses composite sync
 	input        ypbpr,
@@ -14,23 +53,26 @@ module video_mixer
 	// 0 = 16-240 range. 1 = 0-255 range. (only for YPbPr color space)
 	input        ypbpr_full,
 
-	// interlace (15khz) color
-	input  [7:0] r_i,
-	input  [7:0] g_i,
-	input  [7:0] b_i,
+	// color
+	input [DWIDTH:0] R,
+	input [DWIDTH:0] G,
+	input [DWIDTH:0] B,
+	
+	// Monochrome mode (for HALF_DEPTH only)
+	input            mono,
 
 	// interlace sync. Positive pulses.
-	input        hsync_i,
-	input        vsync_i,
+	input        HSync,
+	input        VSync,
 
-	// progressive (31khz) color
-	input  [7:0] r_p,
-	input  [7:0] g_p,
-	input  [7:0] b_p,
-
-	// progressive sync. Positive pulses.
-	input        hsync_p,
-	input        vsync_p,
+	// Falling of this signal means start of informative part of line.
+	// It can be horizontal blank signal.
+	// This signal can be used to reduce amount of required FPGA RAM for HQ2x scan doubler
+	// If FPGA RAM is not an issue, then simply set it to 0 for whole line processing.
+	// Keep in mind: due to algo first and last pixels of line should be black to avoid side artefacts.
+	// Thus, if blank signal is used to reduce the line, make sure to feed at least one black (or paper) pixel 
+	// before first informative pixel.
+	input        line_start,
 
 	// MiST video output signals
 	output [5:0] VGA_R,
@@ -40,9 +82,94 @@ module video_mixer
 	output       VGA_HS
 );
 
-wire [7:0] red   = scandoubler_disable ? r_i : r_p;
-wire [7:0] green = scandoubler_disable ? g_i : g_p;
-wire [7:0] blue  = scandoubler_disable ? b_i : b_p;
+localparam DWIDTH = HALF_DEPTH ? 2 : 5;
+
+wire [DWIDTH:0] R_sd;
+wire [DWIDTH:0] G_sd;
+wire [DWIDTH:0] B_sd;
+wire hs_sd, vs_sd;
+
+scandoubler #(.LENGTH(LINE_LENGTH), .HALF_DEPTH(HALF_DEPTH)) scandoubler
+(
+	.*,
+	.hs_in(HSync),
+	.vs_in(VSync),
+	.r_in(R),
+	.g_in(G),
+	.b_in(B),
+
+	.hs_out(hs_sd),
+	.vs_out(vs_sd),
+	.r_out(R_sd),
+	.g_out(G_sd),
+	.b_out(B_sd)
+);
+
+wire [DWIDTH:0] rt  = (scandoubler_disable ? R : R_sd);
+wire [DWIDTH:0] gt  = (scandoubler_disable ? G : G_sd);
+wire [DWIDTH:0] bt  = (scandoubler_disable ? B : B_sd);
+
+wire [7:0] r  = HALF_DEPTH ? (mono ? {gt,rt,gt[2:1]} : {rt,rt,rt[2:1]}) : {rt, rt[5:4]};
+wire [7:0] g  = HALF_DEPTH ? (mono ? {gt,rt,gt[2:1]} : {gt,gt,gt[2:1]}) : {gt, gt[5:4]} ;
+wire [7:0] b  = HALF_DEPTH ? (mono ? {gt,rt,gt[2:1]} : {bt,bt,bt[2:1]}) : {bt, bt[5:4]} ;
+wire       hs = (scandoubler_disable ? HSync : hs_sd);
+wire       vs = (scandoubler_disable ? VSync : vs_sd);
+
+reg scanline = 0;
+always @(posedge clk_sys) begin
+	reg old_hs, old_vs;
+	
+	old_hs <= hs;
+	old_vs <= vs;
+	
+	if(old_hs && ~hs) scanline <= ~scanline;
+	if(old_vs && ~vs) scanline <= 0;
+end
+
+wire [7:0] r_out, g_out, b_out;
+always @(*) begin
+	case(scanlines & {scanline, scanline})
+		1: begin // reduce 25% = 1/2 + 1/4
+			r_out = {1'b0, r[7:1]} + {2'b00, r[7:2]};
+			g_out = {1'b0, g[7:1]} + {2'b00, g[7:2]};
+			b_out = {1'b0, b[7:1]} + {2'b00, b[7:2]};
+		end
+
+		2: begin // reduce 50% = 1/2
+			r_out = {1'b0, r[7:1]};
+			g_out = {1'b0, g[7:1]};
+			b_out = {1'b0, b[7:1]};
+		end
+
+		3: begin // reduce 75% = 1/4
+			r_out = {2'b00, r[7:2]};
+			g_out = {2'b00, g[7:2]};
+			b_out = {2'b00, b[7:2]};
+		end
+
+		default: begin
+			r_out = r;
+			g_out = g;
+			b_out = b;
+		end
+	endcase
+end
+
+wire [7:0] red, green, blue;
+osd #(OSD_X_OFFSET, OSD_Y_OFFSET, OSD_COLOR) osd
+(
+	.*,
+
+	.R_in(r_out),
+	.G_in(g_out),
+	.B_in(b_out),
+	.HSync(hs),
+	.VSync(vs),
+
+	.R_out(red),
+	.G_out(green),
+	.B_out(blue)
+);
 
 wire [5:0] yuv_full[225] = '{
   6'd0,   6'd0,  6'd0,  6'd0,  6'd1,  6'd1,  6'd1,  6'd1,
@@ -92,7 +219,7 @@ wire [7:0] pr = (pr_8[17:8] < 16) ? 8'd16 : (pr_8[17:8] > 240) ? 8'd240 : pr_8[1
 assign VGA_R  = ypbpr ? (ypbpr_full ? yuv_full[pr-8'd16] : pr[7:2]) :   red[7:2];
 assign VGA_G  = ypbpr ? (ypbpr_full ? yuv_full[y -8'd16] :  y[7:2]) : green[7:2];
 assign VGA_B  = ypbpr ? (ypbpr_full ? yuv_full[pb-8'd16] : pb[7:2]) :  blue[7:2];
-assign VGA_VS = (scandoubler_disable | ypbpr) ? 1'b1 : ~vsync_p;
-assign VGA_HS = scandoubler_disable ? ~(hsync_i ^ vsync_i) : ypbpr ? ~(hsync_p ^ vsync_p) : ~hsync_p;
+assign VGA_VS = (scandoubler_disable | ypbpr) ? 1'b1 : ~vs_sd;
+assign VGA_HS = scandoubler_disable ? ~(HSync ^ VSync) : ypbpr ? ~(hs_sd ^ vs_sd) : ~hs_sd;
 
 endmodule

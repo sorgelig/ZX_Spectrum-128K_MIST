@@ -62,7 +62,7 @@ module video
 	input   [2:0] border_color,
 	input         scandoubler_disable,
 	input         ypbpr,
-	input   [1:0] scanlines,
+	input   [1:0] scale,
 
 	// OSD IO interface
 	input         SPI_SCK,
@@ -81,62 +81,20 @@ assign vram_addr = vaddr;
 assign nINT      = ~INT;
 assign port_ff   = tmx_using_ff ? tmx_cfg : mZX ? ff_data : 8'hFF;
 
-wire  [5:0] VGA_Rs, VGA_Rd;
-wire  [5:0] VGA_Gs, VGA_Gd;
-wire  [5:0] VGA_Bs, VGA_Bd;
-wire        hsyncd, vsyncd;
-
-osd #(10'd10, 10'd0, 3'd4) osd
+video_mixer #(.LINE_LENGTH(896), .HALF_DEPTH(1)) video_mixer
 (
 	.*,
-	.ce_pix(ce_7mp),
-	.VGA_Rx(Rx),
-	.VGA_Gx(Gx),
-	.VGA_Bx(Bx),
-	.VGA_R(VGA_Rs),
-	.VGA_G(VGA_Gs),
-	.VGA_B(VGA_Bs),
-	.OSD_HS(HSync),
-	.OSD_VS(VSync)
-);
+	.ce_pix(ce_7mp | (tmx_hi & ce_7mn)),
+	.hq2x(scale == 1),
+	.scanlines({scale==3, scale==2}),
 
-scandoubler scandoubler 
-(
-	.clk_sys(clk_sys),
-	.ce_x2(ce_28m),
-	.ce_x1(ce_7mp | ce_7mn),
-
-	.scanlines(scanlines),
-
-	.hs_in(HSync),
-	.vs_in(VSync),
-	.r_in(VGA_Rs),
-	.g_in(VGA_Gs),
-	.b_in(VGA_Bs),
-
-	.hs_out(hsyncd),
-	.vs_out(vsyncd),
-	.r_out(VGA_Rd),
-	.g_out(VGA_Gd),
-	.b_out(VGA_Bd)
-);
-
-video_mixer video_mixer
-(
-	.*,
+	.line_start(0),
 	.ypbpr_full(1),
 
-	.r_i({VGA_Rs, VGA_Rs[5:4]}),
-	.g_i({VGA_Gs, VGA_Gs[5:4]}),
-	.b_i({VGA_Bs, VGA_Bs[5:4]}),
-	.hsync_i(HSync),
-	.vsync_i(VSync),
-
-	.r_p({VGA_Rd, VGA_Rd[5:4]}),
-	.g_p({VGA_Gd, VGA_Gd[5:4]}),
-	.b_p({VGA_Bd, VGA_Bd[5:4]}),
-	.hsync_p(hsyncd),
-	.vsync_p(vsyncd)
+	.R(Rx),
+	.G(Gx),
+	.B(Bx),
+	.mono(ulap_ena & ulap_mono)
 );
 
 // Pixel clock
@@ -225,7 +183,7 @@ always @(posedge clk_sys) begin
 end
 
 wire [7:0] hipalette[8] = '{8'b01111000, 8'b01110001, 8'b01101010, 8'b01100011, 
-								 8'b01011100, 8'b01010101, 8'b01001110, 8'b01000111};
+								    8'b01011100, 8'b01010101, 8'b01001110, 8'b01000111};
 
 reg        INT    = 0;
 reg  [5:0] INTCnt = 1;
@@ -250,18 +208,18 @@ reg  [7:0] attr;
 wire [7:0] hiattr  = hipalette[tmx_cfg[5:3]];
 wire       stdpage = tmx_using_ff | ~tmx_ena;
 
-reg  [5:0] Rx, Gx, Bx;
+reg  [2:0] Rx, Gx, Bx;
 wire       I,G,R,B;
 wire       Pixel = tmx_hi ? hiSRegister[15] : SRegister[7] ^ (AttrOut[7] & FlashCnt[4]);
 assign     {I,G,R,B} = Pixel ? {AttrOut[6],AttrOut[2:0]} : {AttrOut[6],AttrOut[5:3]};
 wire [7:0] color = palette[(tmx_hi ? hiSRegister[15] : SRegister[7]) ? {AttrOut[7:6],1'b0,AttrOut[2:0]} : {AttrOut[7:6],1'b1,AttrOut[5:3]}];
 
-always_comb casex({HBlank | VSync, ulap_ena, ulap_mono})
-	'b1XX: {Rx,Gx,Bx} <= 0;
-	'b00X: {Rx,Gx,Bx} <= {{R, R, I & R, I & R, I & R, I & R}, {G, G, I & G, I & G, I & G, I & G}, {B, B, I & B, I & B, I & B, I & B}};
-	'b010: {Rx,Gx,Bx} <= {{color[4:2],color[4:2]}, {color[7:5],color[7:5]}, {color[1:0],|color[1:0],color[1:0],|color[1:0]}};
-	'b011: {Rx,Gx,Bx} <= {color[7:2], color[7:2], color[7:2]};
+always_comb casex({HBlank | VSync, ulap_ena})
+	'b1X: {Gx,Rx,Bx} <= 0;
+	'b00: {Gx,Rx,Bx} <= {{G, I & G, I & G}, {R, I & R, I & R}, {B, I & B, I & B}};
+	'b01: {Gx,Rx,Bx} <= {color, color[1]};
 endcase
+
 
 ///////////////////////////////////////////////////////////////////////////////
 
