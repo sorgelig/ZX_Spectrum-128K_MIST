@@ -109,11 +109,20 @@ wire [DWIDTH:0] rt  = (scandoubler_disable ? R : R_sd);
 wire [DWIDTH:0] gt  = (scandoubler_disable ? G : G_sd);
 wire [DWIDTH:0] bt  = (scandoubler_disable ? B : B_sd);
 
-wire [7:0] r  = HALF_DEPTH ? (mono ? {gt,rt,gt[2:1]} : {rt,rt,rt[2:1]}) : {rt, rt[5:4]};
-wire [7:0] g  = HALF_DEPTH ? (mono ? {gt,rt,gt[2:1]} : {gt,gt,gt[2:1]}) : {gt, gt[5:4]} ;
-wire [7:0] b  = HALF_DEPTH ? (mono ? {gt,rt,gt[2:1]} : {bt,bt,bt[2:1]}) : {bt, bt[5:4]} ;
-wire       hs = (scandoubler_disable ? HSync : hs_sd);
-wire       vs = (scandoubler_disable ? VSync : vs_sd);
+generate
+	if(HALF_DEPTH) begin
+		wire [7:0] r  = mono ? {gt,rt,gt[2:1]} : {rt,rt,rt[2:1]};
+		wire [7:0] g  = mono ? {gt,rt,gt[2:1]} : {gt,gt,gt[2:1]};
+		wire [7:0] b  = mono ? {gt,rt,gt[2:1]} : {bt,bt,bt[2:1]};
+	end else begin
+		wire [7:0] r  = {rt, rt[5:4]};
+		wire [7:0] g  = {gt, gt[5:4]};
+		wire [7:0] b  = {bt, bt[5:4]};
+	end
+endgenerate
+
+wire hs = (scandoubler_disable ? HSync : hs_sd);
+wire vs = (scandoubler_disable ? VSync : vs_sd);
 
 reg scanline = 0;
 always @(posedge clk_sys) begin

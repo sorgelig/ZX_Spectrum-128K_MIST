@@ -74,7 +74,7 @@ localparam CONF_STR = {
 	"OFG,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OAC,Memory,Standard 128K,Pentagon 512K,Profi 1024K,Standard 48K;",
 	"ODE,Features,ULA+ & Timex,ULA+,Timex,None;",
-	"V,v3.32.",`BUILD_DATE
+	"V,v3.40.",`BUILD_DATE
 };
 
 

@@ -86,7 +86,7 @@ video_mixer #(.LINE_LENGTH(896), .HALF_DEPTH(1)) video_mixer
 	.*,
 	.ce_pix(ce_7mp | (tmx_hi & ce_7mn)),
 	.hq2x(scale == 1),
-	.scanlines({scale==3, scale==2}),
+	.scanlines(scandoubler_disable ? 2'b00 : {scale==3, scale==2}),
 
 	.line_start(0),
 	.ypbpr_full(1),
