@@ -35,6 +35,12 @@ module video_mixer
 	// Pixel clock or clock_enable (both are accepted).
 	input        ce_pix,
 
+	// Some systems have multiple resolutions.
+	// ce_pix_actual should match ce_pix where every second or fourth pulse is enabled,
+	// thus half or qurter resolutions can be used without brake video sync while switching resolutions.
+	// For fixed single resolution (or when video sync stability isn't required) ce_pix_actual = ce_pix.
+	input        ce_pix_actual,
+
 	// OSD SPI interface
 	input        SPI_SCK,
 	input        SPI_SS3,
@@ -45,6 +51,8 @@ module video_mixer
 
 	// 0 = HVSync 31KHz, 1 = CSync 15KHz
 	input        scandoubler_disable,
+
+	// High quality 2x scaling
 	input        hq2x,
 
 	// YPbPr always uses composite sync
@@ -57,7 +65,7 @@ module video_mixer
 	input [DWIDTH:0] R,
 	input [DWIDTH:0] G,
 	input [DWIDTH:0] B,
-	
+
 	// Monochrome mode (for HALF_DEPTH only)
 	input            mono,
 
@@ -111,18 +119,18 @@ wire [DWIDTH:0] bt  = (scandoubler_disable ? B : B_sd);
 
 generate
 	if(HALF_DEPTH) begin
-		wire [7:0] r  = mono ? {gt,rt,gt[2:1]} : {rt,rt,rt[2:1]};
-		wire [7:0] g  = mono ? {gt,rt,gt[2:1]} : {gt,gt,gt[2:1]};
-		wire [7:0] b  = mono ? {gt,rt,gt[2:1]} : {bt,bt,bt[2:1]};
+		wire [5:0] r  = mono ? {gt,rt} : {rt,rt};
+		wire [5:0] g  = mono ? {gt,rt} : {gt,gt};
+		wire [5:0] b  = mono ? {gt,rt} : {bt,bt};
 	end else begin
-		wire [7:0] r  = {rt, rt[5:4]};
-		wire [7:0] g  = {gt, gt[5:4]};
-		wire [7:0] b  = {bt, bt[5:4]};
+		wire [5:0] r  = rt;
+		wire [5:0] g  = gt;
+		wire [5:0] b  = bt;
 	end
 endgenerate
 
-wire hs = (scandoubler_disable ? HSync : hs_sd);
-wire vs = (scandoubler_disable ? VSync : vs_sd);
+wire       hs = (scandoubler_disable ? HSync : hs_sd);
+wire       vs = (scandoubler_disable ? VSync : vs_sd);
 
 reg scanline = 0;
 always @(posedge clk_sys) begin
@@ -135,25 +143,25 @@ always @(posedge clk_sys) begin
 	if(old_vs && ~vs) scanline <= 0;
 end
 
-wire [7:0] r_out, g_out, b_out;
+wire [5:0] r_out, g_out, b_out;
 always @(*) begin
 	case(scanlines & {scanline, scanline})
 		1: begin // reduce 25% = 1/2 + 1/4
-			r_out = {1'b0, r[7:1]} + {2'b00, r[7:2]};
-			g_out = {1'b0, g[7:1]} + {2'b00, g[7:2]};
-			b_out = {1'b0, b[7:1]} + {2'b00, b[7:2]};
+			r_out = {1'b0, r[5:1]} + {2'b00, r[5:2]};
+			g_out = {1'b0, g[5:1]} + {2'b00, g[5:2]};
+			b_out = {1'b0, b[5:1]} + {2'b00, b[5:2]};
 		end
 
 		2: begin // reduce 50% = 1/2
-			r_out = {1'b0, r[7:1]};
-			g_out = {1'b0, g[7:1]};
-			b_out = {1'b0, b[7:1]};
+			r_out = {1'b0, r[5:1]};
+			g_out = {1'b0, g[5:1]};
+			b_out = {1'b0, b[5:1]};
 		end
 
 		3: begin // reduce 75% = 1/4
-			r_out = {2'b00, r[7:2]};
-			g_out = {2'b00, g[7:2]};
-			b_out = {2'b00, b[7:2]};
+			r_out = {2'b00, r[5:2]};
+			g_out = {2'b00, g[5:2]};
+			b_out = {2'b00, b[5:2]};
 		end
 
 		default: begin
@@ -164,7 +172,7 @@ always @(*) begin
 	endcase
 end
 
-wire [7:0] red, green, blue;
+wire [5:0] red, green, blue;
 osd #(OSD_X_OFFSET, OSD_Y_OFFSET, OSD_COLOR) osd
 (
 	.*,
@@ -217,17 +225,17 @@ wire [5:0] yuv_full[225] = '{
 // Pb = 128 - 0.148*R - 0.291*G + 0.439*B (Pb = -0.169*R - 0.331*G + 0.500*B)
 // Pr = 128 + 0.439*R - 0.368*G - 0.071*B (Pr =  0.500*R - 0.419*G - 0.081*B)
 
-wire [18:0]  y_8 = 19'd04096 + ({red, 6'd0} + {red, 1'd0}) + ({green, 7'd0} + {green}) + ({blue, 4'd0} + {blue, 3'd0} + {blue});
-wire [18:0] pb_8 = 19'd32768 - ({red, 5'd0} + {red, 2'd0} + {red, 1'd0}) - ({green, 6'd0} + {green, 3'd0} + {green, 1'd0}) + ({blue, 6'd0} + {blue, 5'd0} + {blue, 4'd0});
-wire [18:0] pr_8 = 19'd32768 + ({red, 6'd0} + {red, 5'd0} + {red, 4'd0}) - ({green, 6'd0} + {green, 4'd0} + {green, 3'd0} + {green, 2'd0} + {green, 1'd0}) - ({blue, 4'd0} + {blue , 1'd0});
+wire [18:0]  y_8 = 19'd04096 + ({red, 8'd0} + {red, 3'd0}) + ({green, 9'd0} + {green, 2'd0}) + ({blue, 6'd0} + {blue, 5'd0} + {blue, 2'd0});
+wire [18:0] pb_8 = 19'd32768 - ({red, 7'd0} + {red, 4'd0} + {red, 3'd0}) - ({green, 8'd0} + {green, 5'd0} + {green, 3'd0}) + ({blue, 8'd0} + {blue, 7'd0} + {blue, 6'd0});
+wire [18:0] pr_8 = 19'd32768 + ({red, 8'd0} + {red, 7'd0} + {red, 6'd0}) - ({green, 8'd0} + {green, 6'd0} + {green, 5'd0} + {green, 4'd0} + {green, 3'd0}) - ({blue, 6'd0} + {blue , 3'd0});
 
 wire [7:0] y  = ( y_8[17:8] < 16) ? 8'd16 : ( y_8[17:8] > 235) ? 8'd235 :  y_8[15:8];
 wire [7:0] pb = (pb_8[17:8] < 16) ? 8'd16 : (pb_8[17:8] > 240) ? 8'd240 : pb_8[15:8];
 wire [7:0] pr = (pr_8[17:8] < 16) ? 8'd16 : (pr_8[17:8] > 240) ? 8'd240 : pr_8[15:8];
 
-assign VGA_R  = ypbpr ? (ypbpr_full ? yuv_full[pr-8'd16] : pr[7:2]) :   red[7:2];
-assign VGA_G  = ypbpr ? (ypbpr_full ? yuv_full[y -8'd16] :  y[7:2]) : green[7:2];
-assign VGA_B  = ypbpr ? (ypbpr_full ? yuv_full[pb-8'd16] : pb[7:2]) :  blue[7:2];
+assign VGA_R  = ypbpr ? (ypbpr_full ? yuv_full[pr-8'd16] : pr[7:2]) :   red;
+assign VGA_G  = ypbpr ? (ypbpr_full ? yuv_full[y -8'd16] :  y[7:2]) : green;
+assign VGA_B  = ypbpr ? (ypbpr_full ? yuv_full[pb-8'd16] : pb[7:2]) :  blue;
 assign VGA_VS = (scandoubler_disable | ypbpr) ? 1'b1 : ~vs_sd;
 assign VGA_HS = scandoubler_disable ? ~(HSync ^ VSync) : ypbpr ? ~(hs_sd ^ vs_sd) : ~hs_sd;
 

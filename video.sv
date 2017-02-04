@@ -81,27 +81,15 @@ assign vram_addr = vaddr;
 assign nINT      = ~INT;
 assign port_ff   = tmx_using_ff ? tmx_cfg : mZX ? ff_data : 8'hFF;
 
-video_mixer #(.LINE_LENGTH(896), .HALF_DEPTH(1)) video_mixer
-(
-	.*,
-	.ce_pix(ce_7mp | (tmx_hi & ce_7mn)),
-	.hq2x(scale == 1),
-	.scanlines(scandoubler_disable ? 2'b00 : {scale==3, scale==2}),
-
-	.line_start(0),
-	.ypbpr_full(1),
-
-	.R(Rx),
-	.G(Gx),
-	.B(Bx),
-	.mono(ulap_ena & ulap_mono)
-);
-
 // Pixel clock
 reg [8:0] hc = 0;
 reg [8:0] vc = 0;
+reg       mode512;
 always @(posedge clk_sys) begin
+	reg m512;
+
 	if(ce_7mp) begin
+		if((vc<192) || (hc<256)) m512 <= (m512 | tmx_hi);
 		if (hc==((mZX && m128) ? 455 : 447)) begin
 			hc <= 0;
 			if (vc == (!mZX ? 319 : m128 ? 310 : 311)) begin 
@@ -109,6 +97,10 @@ always @(posedge clk_sys) begin
 				FlashCnt <= FlashCnt + 1'd1;
 			end else begin
 				vc <= vc + 1'd1;
+			end
+			if(mZX ? (vc == 240) : (vc == 248)) begin
+				mode512 <= m512;
+				m512 <= 0;
 			end
 		end else begin
 			hc <= hc + 1'd1;
@@ -219,6 +211,23 @@ always_comb casex({HBlank | VSync, ulap_ena})
 	'b00: {Gx,Rx,Bx} <= {{G, I & G, I & G}, {R, I & R, I & R}, {B, I & B, I & B}};
 	'b01: {Gx,Rx,Bx} <= {color, color[1]};
 endcase
+
+video_mixer #(.LINE_LENGTH(896), .HALF_DEPTH(1)) video_mixer
+(
+	.*,
+	.ce_pix(ce_7mp | ce_7mn),
+	.ce_pix_actual(ce_7mp | (mode512 & ce_7mn)),
+	.hq2x(scale == 1),
+	.scanlines(scandoubler_disable ? 2'b00 : {scale==3, scale==2}),
+
+	.line_start(0),
+	.ypbpr_full(1),
+
+	.R(Rx),
+	.G(Gx),
+	.B(Bx),
+	.mono(ulap_ena & ulap_mono)
+);
 
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -12,16 +12,16 @@ module osd (
 	input        SPI_DI,
 
 	// VGA signals coming from core
-	input  [7:0] R_in,
-	input  [7:0] G_in,
-	input  [7:0] B_in,
+	input  [5:0] R_in,
+	input  [5:0] G_in,
+	input  [5:0] B_in,
 	input        HSync,
 	input        VSync,
 	
 	// VGA signals going to video connector
-	output [7:0] R_out,
-	output [7:0] G_out,
-	output [7:0] B_out
+	output [5:0] R_out,
+	output [5:0] G_out,
+	output [5:0] B_out
 );
 
 parameter OSD_X_OFFSET = 10'd0;
@@ -172,8 +172,8 @@ always @(posedge clk_sys) if(ce_pix) osd_byte <= osd_buffer[{doublescan ? osd_vc
 
 wire osd_pixel = osd_byte[doublescan ? osd_vcnt[4:2] : osd_vcnt[3:1]];
 
-assign R_out = !osd_de ? R_in : {osd_pixel, osd_pixel, OSD_COLOR[2], R_in[7:3]};
-assign G_out = !osd_de ? G_in : {osd_pixel, osd_pixel, OSD_COLOR[1], G_in[7:3]};
-assign B_out = !osd_de ? B_in : {osd_pixel, osd_pixel, OSD_COLOR[0], B_in[7:3]};
+assign R_out = !osd_de ? R_in : {osd_pixel, osd_pixel, OSD_COLOR[2], R_in[5:3]};
+assign G_out = !osd_de ? G_in : {osd_pixel, osd_pixel, OSD_COLOR[1], G_in[5:3]};
+assign B_out = !osd_de ? B_in : {osd_pixel, osd_pixel, OSD_COLOR[0], B_in[5:3]};
 
 endmodule

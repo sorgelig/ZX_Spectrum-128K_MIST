@@ -24,6 +24,8 @@ module scandoubler #(parameter LENGTH, parameter HALF_DEPTH)
 	// system interface
 	input             clk_sys,
 	input             ce_pix,
+	input             ce_pix_actual,
+
 	input             hq2x,
 
 	// shifter video interface
@@ -49,49 +51,87 @@ localparam DWIDTH = HALF_DEPTH ? 2 : 5;
 
 assign vs_out = vs_in;
 
+reg  [2:0] phase;
+reg  [2:0] ce_div;
+reg  [7:0] pix_len = 0;
+wire [7:0] pl = pix_len + 1'b1;
+
 reg ce_x1, ce_x4;
+reg req_line_reset;
+wire ls_in = hs_in | line_start;
 always @(negedge clk_sys) begin
 	reg old_ce;
-	reg [7:0] cnt   = 0;
+	reg [2:0] ce_cnt;
+
 	reg [7:0] pixsz2, pixsz4 = 0;
 
 	old_ce <= ce_pix;
-	if(~&cnt) cnt <= cnt + 1'd1;
+	if(~&pix_len) pix_len <= pix_len + 1'd1;
 
 	ce_x4 <= 0;
 	ce_x1 <= 0;
-	if(~old_ce & ce_pix) begin
-		pixsz2 <= {1'b0,  cnt[7:1]};
-		pixsz4 <= {2'b00, cnt[7:2]};
-		ce_x1 <= 1;
+
+	// use such odd comparison to place c_x4 evenly if master clock isn't multiple 4.
+	if((pl == pixsz4) || (pl == pixsz2) || (pl == (pixsz2+pixsz4))) begin
+		phase <= phase + 1'd1;
 		ce_x4 <= 1;
-		cnt   <= 0;
 	end
 
-	if(cnt == pixsz4)          ce_x4 <= 1;
-	if(cnt == pixsz2)          ce_x4 <= 1;
-	if(cnt == (pixsz2+pixsz4)) ce_x4 <= 1;
+	if(~old_ce & ce_pix) begin
+		pixsz2 <= {1'b0,  pl[7:1]};
+		pixsz4 <= {2'b00, pl[7:2]};
+		ce_x1 <= 1;
+		ce_x4 <= 1;
+		pix_len <= 0;
+		phase <= phase + 1'd1;
+
+		ce_cnt <= ce_cnt + 1'd1;
+		if(ce_pix_actual) begin
+			phase <= 0;
+			ce_div <= ce_cnt + 1'd1;
+			ce_cnt <= 0;
+			req_line_reset <= 0;
+		end
+
+		if(ls_in) req_line_reset <= 1;
+	end
+end
+
+reg ce_sd;
+always @(*) begin
+	case(ce_div)
+		2: ce_sd = !phase[0];
+		4: ce_sd = !phase[1:0];
+		default: ce_sd <= 1;
+	endcase
 end
 
 localparam AWIDTH = `BITS_TO_FIT(LENGTH);
 Hq2x #(.LENGTH(LENGTH), .HALF_DEPTH(HALF_DEPTH)) Hq2x
 (
 	.clk(clk_sys),
-	.ce_x4(ce_x4),
+	.ce_x4(ce_x4 & ce_sd),
 	.inputpixel({b_in,g_in,r_in}),
 	.mono(mono),
 	.disable_hq2x(~hq2x),
 	.reset_frame(vs_in),
-	.reset_line(hs_in | line_start),
+	.reset_line(req_line_reset),
 	.read_y(sd_line),
-	.read_x(sd_h[AWIDTH+1:0]),
+	.read_x(sd_h_actual),
 	.outpixel({b_out,g_out,r_out})
 );
 
+reg [10:0] sd_h_actual;
+always @(*) begin
+	case(ce_div)
+		2: sd_h_actual = sd_h[10:1];
+		4: sd_h_actual = sd_h[10:2];
+		default: sd_h_actual = sd_h;
+	endcase
+end
+
 reg [10:0] sd_h;
 reg  [1:0] sd_line;
-wire       ls_in = hs_in | line_start;
-
 always @(posedge clk_sys) begin
 
 	reg [11:0] hs_max,hs_rise,hs_ls;
