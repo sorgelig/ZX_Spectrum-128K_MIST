@@ -166,14 +166,14 @@ always @(posedge clk_sys) begin
 					if(tick == 1) audio_out <= ~audio_out;
 				end else begin
 					case(state)
-						0: begin
+						0: begin  //new block
 								hdrsz <= 2;
 								read_done <= 0;
 								pilot <= turbo ? 16'd20 : 16'd3220;
 								timeout <= 3500000;
 								state <= state + 1'b1;
 							end
-						1: begin
+						1: begin  //tone
 								if(skip) begin
 									if(!hdrsz && read_done) begin
 										blk_type <= din_r[7];
@@ -207,7 +207,7 @@ always @(posedge clk_sys) begin
 								tick <= 735;
 								state <= state + 1'b1;
 							end
-						4: begin
+						4: begin  //data
 								if(blocksz) begin
 									if(read_done) begin
 										read_done <= 0;
@@ -255,11 +255,16 @@ always @(posedge clk_sys) begin
 								bitcnt <= bitcnt - 1'b1;
 								state  <= state - 1'b1;
 							end
-						7: begin
+						7: begin //turbo mode
 								if(byte_wait) begin
 									byte_ready <= 1;
 									state <= state + 1'b1;
-								end
+								end else if (!turbo) begin
+									//skip to the block's end if the Speccy
+									//already finished loading
+								   blocksz <= blocksz - 1'b1;
+								   state <= 4;
+							   end
 							end
 						8: begin
 								if(!byte_wait) begin
@@ -416,7 +421,7 @@ always @(posedge clk_sys) begin
 
 	if(m1 & ~old_m1) begin
 		if((addr == 'h5ED) & rom_en) stdload <= 1;
-		if((addr == 'h556) & rom_en) {turbo, stdhdr} <= {allow_turbo & available, req_hdr};
+		if((addr == 'h562) & rom_en) {turbo, stdhdr} <= {allow_turbo & available, req_hdr};
 		if((addr >= 'h605) | (addr < 'h53F) | ~rom_en) {turbo, stdhdr, stdload} <= 0;
 
 		if(tape_ld1 & (addr < 'h5CC)) begin
