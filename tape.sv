@@ -87,6 +87,7 @@ always @(posedge clk_sys) begin
 	reg        blk_type;
 	reg  [7:0] din_r;
 	reg        skip;
+	reg        turboskip;
 	reg        auto_blk;
 	reg  [4:0] blk_num;
 	reg        old_stdload;
@@ -132,6 +133,7 @@ always @(posedge clk_sys) begin
 		bitcnt   <= 1;
 		blk_type <= 0;
 		skip     <= 0;
+		turboskip <= 0;
 		auto_blk <= 0;
 		blk_list <= '{default:0};
 		blk_num  <= 0;
@@ -214,7 +216,7 @@ always @(posedge clk_sys) begin
 										data <= din_r;
 										read_cnt <= read_cnt - 1'b1;
 										bitcnt <= 8;
-										if(skip) begin
+										if(skip || turboskip) begin
 											blocksz <= blocksz - 1'b1;
 											timeout <= 0;
 										end else begin
@@ -223,6 +225,7 @@ always @(posedge clk_sys) begin
 										end
 									end
 								end else begin
+									turboskip <= 0;
 									if(!read_cnt || !timeout) begin
 										if(blk_type && read_cnt) begin
 											blk_num <= blk_num + 1'b1;
@@ -262,9 +265,10 @@ always @(posedge clk_sys) begin
 								end else if (!turbo) begin
 									//skip to the block's end if the Speccy
 									//already finished loading
-								   blocksz <= blocksz - 1'b1;
-								   state <= 4;
-							   end
+									turboskip <= 1;
+									blocksz <= blocksz - 1'b1;
+									state <= 4;
+								end
 							end
 						8: begin
 								if(!byte_wait) begin
