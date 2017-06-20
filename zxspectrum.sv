@@ -72,7 +72,7 @@ localparam CONF_STR = {
 	"O6,Fast tape load,On,Off;",
 	"O89,Video timings,ULA-48,ULA-128,Pentagon;",
 	"OFG,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
-	"OAC,Memory,Standard 128K,Pentagon 512K,Profi 1024K,Standard 48K;",
+	"OAC,Memory,Standard 128K,Pentagon 512K,Profi 1024K,Standard 48K,+2A/+3;",
 	"ODE,Features,ULA+ & Timex,ULA+,Timex,None;",
 	"V,v3.40.",`BUILD_DATE
 };
@@ -223,7 +223,7 @@ wire        reset  = buttons[1] | status[0] | cold_reset | warm_reset | shdw_res
 
 wire        cold_reset =((mod[2:1] == 1) & Fn[11]) | init_reset;
 wire        warm_reset = (mod[2:1] == 2) & Fn[11];
-wire        shdw_reset = (mod[2:1] == 3) & Fn[11];
+wire        shdw_reset = (mod[2:1] == 3) & Fn[11] & ~plus3;
 
 wire        io_wr = ~nIORQ & ~nWR & nM1;
 wire        io_rd = ~nIORQ & ~nRD & nM1;
@@ -258,17 +258,18 @@ T80pa cpu
 );
 
 always_comb begin
-	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel | fdd_sel2, addr[5:0]==8'h1F, portBF, addr[0], psg_enable, ulap_sel})
-		'b00XXXXXXX: cpu_din = ram_dout;
-		'b01XXXXXXX: cpu_din = tape_dout;
-		'b1X01XXXXX: cpu_din = fdd_dout;
-		'b1X001XXXX: cpu_din = mouse_sel ? mouse_data : {2'b00, joystick_0[5:0] | joystick_1[5:0]};
-		'b1X0001XXX: cpu_din = {page_scr_copy, 7'b1111111};
-		'b1X000011X: cpu_din = (addr[14] ? sound_data : 8'hFF);
-		'b1X0000101: cpu_din = ulap_dout;
-		'b1X0000100: cpu_din = port_ff;
-		'b1X00000XX: cpu_din = {1'b1, ~tape_in, 1'b1, key_data[4:0]};
-		'b1X1XXXXXX: cpu_din = 8'hFF;
+	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel | fdd_sel2, mf3_port, addr[7:0]==8'h1F, portBF, addr[0], psg_enable, ulap_sel})
+		'b00XXXXXXXX: cpu_din = ram_dout;
+		'b01XXXXXXXX: cpu_din = tape_dout;
+		'b1X01XXXXXX: cpu_din = fdd_dout;
+		'b1X001XXXXX: cpu_din = (addr[14:13] == 2'b11 ? page_reg : page_reg_plus3);
+		'b1X0001XXXX: cpu_din = mouse_sel ? mouse_data : {2'b00, joystick_0[5:0] | joystick_1[5:0]};
+		'b1X00001XXX: cpu_din = {page_scr_copy, 7'b1111111};
+		'b1X0000011X: cpu_din = (addr[14] ? sound_data : 8'hFF);
+		'b1X00000101: cpu_din = ulap_dout;
+		'b1X00000100: cpu_din = port_ff;
+		'b1X000000XX: cpu_din = {1'b1, ~tape_in, 1'b1, key_data[4:0]};
+		'b1X1XXXXXXX: cpu_din = 8'hFF;
 	endcase
 end
 
@@ -298,17 +299,23 @@ reg         ram_we;
 reg         ram_rd;
 wire  [7:0] ram_dout;
 wire        ram_ready;
+wire  [6:0] romaddr = (trdos_en | ~plus3) ? {5'h17, page_rom} : {5'h18, page_reg_plus3[2], page_reg[4]};
 
 always_comb begin
-	casex({dma, tape_req, plusd_mem, mf128_mem, addr[15:14]})
-		'b1XXX_XX: ram_addr = ioctl_addr;
-		'b01XX_XX: ram_addr = tape_addr;
-		'b001X_00: ram_addr = {5'h18, 2'b00,    addr[13:0]};
-		'b0001_00: ram_addr = {5'h18, 2'b01,    addr[13:0]};
-		'b0000_00: ram_addr = {5'h17, page_rom, addr[13:0]};
-		'b00XX_01: ram_addr = {       3'd5,     addr[13:0]};
-		'b00XX_10: ram_addr = {       3'd2,     addr[13:0]};
-		'b00XX_11: ram_addr = {       page_ram, addr[13:0]};
+	
+	casex({dma, tape_req, plusd_mem, mf128_mem, page_special, addr[15:14]})
+		'b1X_XX_X_XX: ram_addr = ioctl_addr;
+		'b01_XX_X_XX: ram_addr = tape_addr;
+		'b00_1X_X_00: ram_addr = {5'h19, 2'b00,         addr[13:0]}; //PlusD
+		'b00_01_X_00: ram_addr = {5'h19, plus3, ~plus3, addr[13:0]}; //MF
+		'b00_00_0_00: ram_addr = {     romaddr,         addr[13:0]}; //ROM
+		'b00_XX_0_01: ram_addr = {        3'd5,         addr[13:0]}; //Non-special page modes
+		'b00_XX_0_10: ram_addr = {        3'd2,         addr[13:0]};
+		'b00_XX_0_11: ram_addr = {    page_ram,         addr[13:0]};
+		'b00_00_1_00: ram_addr = { |page_reg_plus3[2:1],                      2'b00, addr[13:0]}; //Special page modes
+		'b00_XX_1_01: ram_addr = { |page_reg_plus3[2:1], &page_reg_plus3[2:1], 1'b1, addr[13:0]};
+		'b00_XX_1_10: ram_addr = { |page_reg_plus3[2:1],                      2'b10, addr[13:0]};
+		'b00_XX_1_11: ram_addr = { ~page_reg_plus3[2] & page_reg_plus3[1],    2'b11, addr[13:0]};
 	endcase
 
 	casex({dma, tape_req})
@@ -326,7 +333,7 @@ always_comb begin
 	casex({dma, tape_req})
 		'b1X: ram_we = ioctl_wr;
 		'b01: ram_we = 0;
-		'b00: ram_we = (addr[15] | addr[14] | ((plusd_mem | mf128_mem) & addr[13])) & ~nMREQ & ~nWR;
+		'b00: ram_we = ((page_special & ~mf128_mem) | addr[15] | addr[14] | ((plusd_mem | mf128_mem) & addr[13])) & ~nMREQ & ~nWR;
 	endcase
 end
 
@@ -360,13 +367,17 @@ vram vram
 reg        zx48;
 reg        p512;
 reg        pf1024;
+reg        plus3;
 reg        page_scr_copy;
 reg        shadow_rom;
 reg  [7:0] page_reg;
+reg  [7:0] page_reg_plus3;
 wire       page_disable = zx48 | page_reg[5];
 wire       page_scr     = page_reg[3];
 wire [5:0] page_ram     = {page_128k, page_reg[2:0]};
-wire       page_write   = ~addr[15] & ~addr[1] & ~page_disable;
+wire       page_write   = ~addr[15] & ~addr[1] & (addr[14] | ~plus3) & ~page_disable;
+wire       page_write_plus3 = ~addr[1] & addr[12] & ~addr[13] & ~addr[14] & ~addr[15] & plus3 & ~page_disable;
+wire       page_special = plus3 & page_reg_plus3[0];
 reg  [2:0] page_128k;
 
 reg  [1:0] page_rom;
@@ -387,20 +398,24 @@ always @(posedge clk_sys) begin
 	if(reset) begin
 		page_scr_copy <= 0;
 		page_reg   <= 0;
+		page_reg_plus3 <= 0;
 		page_128k  <= 0;
 		shadow_rom <= shdw_reset & ~plusd_en;
 		p512  <= (status[12:10] == 1);
 		pf1024<= (status[12:10] == 2);
 		zx48  <= (status[12:10] == 3);
+		plus3 <= (status[12:10] == 4);
 	end else begin
 		if(m1 && ~old_m1 && addr[15:14]) shadow_rom <= 0;
-		if(m1 && ~old_m1 && ~plusd_en && ~mod[0] && (addr == 'h66)) shadow_rom <= 1;
+		if(m1 && ~old_m1 && ~plusd_en && ~mod[0] && (addr == 'h66) && ~plus3) shadow_rom <= 1;
 
 		if(io_wr & ~old_wr) begin
 			if(page_write) begin
 				page_reg  <= cpu_dout;
 				if(p512)  page_128k[1:0] <= cpu_dout[7:6];
 				if(~plusd_mem) page_scr_copy <= page_reg[3];
+			end else if (page_write_plus3) begin
+			   page_reg_plus3 <= cpu_dout;
 			end
 			if(pf1024 & (addr == 'hDFFD)) page_128k <= cpu_dout[2:0];
 		end
@@ -512,16 +527,24 @@ end
 
 //////////////////   MF128   ///////////////////
 reg         mf128_mem;
-reg         mf128_en; // enable MF128 page-in from NMI till reset
+reg         mf128_en; // enable MF128 page-in from NMI till reset (or soft off)
+
+wire        mf128_port = ~addr[6] & addr[5] & addr[4] & addr[1];
+// read paging registers saved in MF3 (1f3f)
+wire        mf3_port = mf128_port & ~addr[7] & (addr[12:8] == 'h1f) & plus3 & mf128_en;
 
 always @(posedge clk_sys) begin
-	reg old_m1, old_rd;
+	reg old_m1, old_rd, old_wr;
 
 	old_rd <= io_rd;
+	old_wr <= io_wr;
 	if(reset) {mf128_mem, mf128_en} <= 0;
 	else if(~old_rd & io_rd) begin
-		if((addr[7:0] == 'hBF) & mf128_en) mf128_mem <= 1;
-		if(addr[7:0] == 'h3F) mf128_mem <= 0;
+		//page in/out for port IN
+		if(mf128_port) mf128_mem <= (addr[7] ^ plus3) & mf128_en;
+	end else if(~old_wr & io_wr) begin
+		//Soft hide
+		if(mf128_port) mf128_en <= addr[7] & mf128_en;
 	end
 
 	old_m1 <= m1;
@@ -560,7 +583,7 @@ wire        plusd_stealth = 1;
 
 // read video page.
 // available for MF128 and PlusD(patched).
-wire        portBF = (addr[7:0] == 'hBF) & (mf128_mem | plusd_mem);
+wire        portBF = mf128_port & addr[7] & (mf128_mem | plusd_mem);
 
 always @(posedge clk_sys) begin
 	reg old_wr, old_rd;
@@ -592,7 +615,7 @@ always @(posedge clk_sys) begin
 		if(~old_wr & io_wr & fdd_sel & addr[7]) {fdd_side, fdd_reset, fdd_drive1} <= {~cpu_dout[4], ~cpu_dout[2], !cpu_dout[1:0]};
 		if(m1 && ~old_m1) begin
 			if(addr[15:14]) trdos_en <= 0;
-				else if((addr[13:8] == 'h3D) & page_rom[0]) trdos_en <= 1;
+				else if((addr[13:8] == 'h3D) & page_rom[0] & ~page_special) trdos_en <= 1;
 				//else if(~mod[0] & (addr == 'h66)) trdos_en <= 1;
 		end
 	end
