@@ -356,7 +356,6 @@ module smart_tape
 	input         clk_sys,
 	input         ce,
 
-	output reg    turbo,
 	input         pause,
 	input         prev,
 	input         next,
@@ -398,6 +397,7 @@ wire byte_ready;
 reg  byte_wait;
 reg  stdload;
 reg  stdhdr;
+reg  turbo;
 reg  tape_ready;
 
 tape tape
