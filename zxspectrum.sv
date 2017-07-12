@@ -267,7 +267,7 @@ always_comb begin
 		'b1X000011X: cpu_din = (addr[14] ? sound_data : 8'hFF);
 		'b1X0000101: cpu_din = ulap_dout;
 		'b1X0000100: cpu_din = port_ff;
-		'b1X00000XX: cpu_din = {1'b1, ~tape_in, 1'b1, key_data[4:0]};
+		'b1X00000XX: cpu_din = {1'b1, ~tape_in, 1'b1, key_data[4:0] & ({5{addr[12]}} | ~{joystick_1[1:0], joystick_1[2], joystick_1[3], joystick_1[4]})};
 		'b1X1XXXXXX: cpu_din = 8'hFF;
 	endcase
 end
