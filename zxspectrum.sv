@@ -262,7 +262,7 @@ always_comb begin
 		'b00XXXXXXX: cpu_din = ram_dout;
 		'b01XXXXXXX: cpu_din = tape_dout;
 		'b1X01XXXXX: cpu_din = fdd_dout;
-		'b1X001XXXX: cpu_din = mouse_sel ? mouse_data : {2'b00, joystick_0[5:0] | joystick_1[5:0]};
+		'b1X001XXXX: cpu_din = mouse_sel ? mouse_data : {2'b00, joystick_0[5:0]};
 		'b1X0001XXX: cpu_din = {page_scr_copy, 7'b1111111};
 		'b1X000011X: cpu_din = (addr[14] ? sound_data : 8'hFF);
 		'b1X0000101: cpu_din = ulap_dout;
@@ -505,7 +505,7 @@ wire  [7:0] mouse_data;
 mouse mouse( .*, .reset(cold_reset), .addr(addr[10:8]), .sel(), .dout(mouse_data));
 
 always @(posedge clk_sys) begin
-	if(joystick_0[5:0] | joystick_1[5:0]) mouse_sel <= 0;
+	if(joystick_0[5:0]) mouse_sel <= 0;
 	if(~ps2_mouse_clk) mouse_sel <= 1;
 end
 

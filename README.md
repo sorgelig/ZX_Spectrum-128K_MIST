@@ -15,6 +15,7 @@ Some verilog models from Till Harbaum [Spectrum](https://github.com/mist-devel/m
 - Memory snapshot save/load in +D and Multiface.
 - Native TAP with turbo loading. Fast loading for TAP and CSW.
 - Kempston Mouse and Joystick.
+- Sinclair Joystick I
 - Audio in from real [tape device](http://www.atari-forum.com/viewtopic.php?p=298401#p298401)
 
 **Core requires MiST firmware update to build 2016/06/26 or newer!**
@@ -66,6 +67,7 @@ It's useful to switch to maximum speed when you are loading tape in normal mode.
 Kempston mouse has no strict convention which bit (D0 or D1) reflects a main button. After each reset, the first button pressed on mouse (left or right buttons only) will be represented by bit D0 (other button will be represented by bit D1). So, if you are not satisfied by mouse button map, then simply press reset and then press other button first.
 Due to port conflict with Kempston joystick, core uses autodetection. Any mouse activity will switch port to mouse control. Any joystick activity will switch port to joystick control.
 Some games/apps autodetect the mouse. So, move the mouse or click its button before use such games/apps.
+The second D-SUB joystick port works as a Sinclar Joystick 1 (emulates keys 6,7,8,9,0)
 
 ### Snapshots:
 Core supports snapshot functionality of +D. In order to use it, you need to mount IMG or MGT image. ROM includes preloaded G+DOS image, thus you can mount IMG/MGT at any time (even while playing the game). **Note #1**: preloaded G+DOS has been patched to allow disk change on-the-fly. So, if you will load G+DOS from disk, then be careful - it may corrupt previous saves if you will change the disk! **Note #2:** only one disk image can be mounted at any time. Thus make sure if you use game from TRD image, the game won't save anything later to its disk. 

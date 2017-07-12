@@ -45,6 +45,8 @@ module keyboard
 	input             ps2_kbd_clk,
 	input             ps2_kbd_data,
 
+	input       [7:0] joystick_1,
+
 	input      [15:0] addr,
 	output      [4:0] key_data,
 
@@ -65,7 +67,7 @@ assign key_data = (!addr[8]  ? keys[0] : 5'b11111)
                  &(!addr[9]  ? keys[1] : 5'b11111)
                  &(!addr[10] ? keys[2] : 5'b11111)
                  &(!addr[11] ? keys[3] : 5'b11111)
-                 &(!addr[12] ? keys[4] : 5'b11111)
+                 &(!addr[12] ? keys[4] & ~{joystick_1[1:0], joystick_1[2], joystick_1[3], joystick_1[4]} : 5'b11111)
                  &(!addr[13] ? keys[5] : 5'b11111)
                  &(!addr[14] ? keys[6] : 5'b11111)
                  &(!addr[15] ? keys[7] : 5'b11111);
@@ -108,6 +110,7 @@ always @(negedge clk_sys) begin
 
 		case(code)
 			8'h12 : keys[0][0] <= release_btn; // Left shift (CAPS SHIFT)
+			8'h59 : keys[0][0] <= release_btn; // Right shift (CAPS SHIFT)
 			8'h1a : keys[0][1] <= release_btn; // Z
 			8'h22 : keys[0][2] <= release_btn; // X
 			8'h21 : keys[0][3] <= release_btn; // C
