@@ -447,7 +447,7 @@ always@(posedge SPI_SCK, posedge SPI_SS2) begin
 				case(ioctl_index[4:0]) 
 							1: addr <= 25'h200000; // TRD buffer  at 2MB
 							2: addr <= 25'h400000; // tape buffer at 4MB 
-					default: addr <= 25'h170000; // boot rom
+					default: addr <= 25'h150000; // boot rom
 				endcase
 				ioctl_download <= 1; 
 			end else begin
