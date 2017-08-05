@@ -426,7 +426,7 @@ always @(posedge clk_sys) begin
 	if(m1 & ~old_m1) begin
 		if((addr == 'h5ED) & rom_en) stdload <= 1;
 		if((addr == 'h562) & rom_en) {turbo, stdhdr} <= {allow_turbo & available, req_hdr};
-		if((addr >= 'h605) | (addr < 'h53F) | ~rom_en) {turbo, stdhdr, stdload} <= 0;
+		if((addr >= 'h605) | (addr < 'h562) | ~rom_en) {turbo, stdhdr, stdload} <= 0;
 
 		if(tape_ld1 & (addr < 'h5CC)) begin
 			byte_wait <= 1;
