@@ -345,6 +345,7 @@ set_global_assignment -name VERILOG_FILE vram.v
 set_global_assignment -name SYSTEMVERILOG_FILE video.sv
 set_global_assignment -name SYSTEMVERILOG_FILE video_mixer.sv
 set_global_assignment -name SYSTEMVERILOG_FILE wd1793.sv
+set_global_assignment -name SYSTEMVERILOG_FILE u765.sv
 set_global_assignment -name VERILOG_FILE mist_io.v
 set_global_assignment -name SDC_FILE zxspectrum.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE zxspectrum.sv
