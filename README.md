@@ -3,15 +3,16 @@
 Some verilog models from Till Harbaum [Spectrum](https://github.com/mist-devel/mist-board/tree/master/cores/spectrum) core were used in this project.
 
 ### Features:
-- Fully functional ZX Spectrum 48K, 128K and Pentagon 128 with correct CPU and Video timings.
+- Fully functional ZX Spectrum 48K, 128K, +3 and Pentagon 128 with correct CPU and Video timings.
 - Pentagon 512K and Profi 1024K memory interfaces.
 - Turbo 7MHz, 14MHz, 28MHz, 56MHz.
 - ULA+ v1.1 programmable palettes with extended Timex control.
 - Timex HiColor, HiRes modes.
 - Original Tape loading through OSD (CSW files).
 - TR-DOS (Beta Disk Interface) and native TRD images.
-- G+DOS (MGT +D Disk Interface) and IMG, MGT images.
-- Multiface 128 add-on.
+- G+DOS (MGT +D Disk Interface) and IMG, MGT images (only in none +2A/3 memory modes).
+- +3 Disk drive usable with +3DOS (read only at the moment).
+- Multiface 128 and Multiface 3 (in +3 mode) add-on.
 - Memory snapshot save/load in +D and Multiface.
 - Native TAP with turbo loading. Fast loading for TAP and CSW.
 - Kempston Mouse and Joystick.
@@ -28,11 +29,16 @@ Copy [spectrum.rom](https://github.com/sorgelig/ZX_Spectrum-128K_MIST/tree/maste
 For PAL mode (RGBS output) you need to put [mist.ini](https://github.com/sorgelig/ZX_Spectrum-128K_MIST/tree/master/releases/mist.ini) file to the root of SD card. Set the option **scandoubler_disable** for desired video output.
 
 ### Notes about supported formats:
-**TRD** is TR-DOS image used with Beta Disk Interface (BDI). To use TR-DOS you need to choose TRD image in OSD first. In 128K mode use menu to enter TR-DOS. In 48K mode use command **RANDOMIZE USR 15616** to enter TR-DOS. Use command **RETURN** to leave TR-DOS.
+**TRD** is TR-DOS image used with Beta Disk Interface (BDI). To use TR-DOS you need to choose TRD image in OSD first. In 128K mode use menu to enter TR-DOS.
+In 48K mode use command **RANDOMIZE USR 15616** to enter TR-DOS. In +3 mode, enter to 48K mode from the +3 BASIC via the USR0 command,
+then issue **RANDOMIZE USR 15616**. Use command **RETURN** to leave TR-DOS.
 
 **IMG** is G+DOS image used with +D Disk interface. Although it's fully supported, i couldn't find any games on such disks. The main purpose of these images is to use snapshot function of +D and Multiface.
 
 **MGT** is G+DOS and MasterDOS (SAM Coupe) image. It's similar to IMG but uses different layout. The main purpose is to transfer data to/from SAM Coupe.
+
+**DSK** +3 disk format. In none- +3 modes, +D tries to mount it, however +3 disk images are not compatible with G+DOS.
+***Note:*** in +3 mode, both the Beta and the +3 disk drive are supported, but only one image can be mounted, so both cannot be used at the same time.
 
 **TAP** is simple tape dump format. It is possible to use normal and **turbo** loading (only if application uses standard loading routines from ROM). To load in turbo mode, you need to choose TAP file in OSD **first** and then start to load app through menu (128K) or by command **LOAD ""** (48K, 128K). To load TAP file in normal mode through internal AUDIO IN loop, you need to start loading through menu or command **first** and then choose TAP file though OSD. If application uses non-standard loader, then TAP file will be played in normal mode automatically. Thus it's safe to always choose the turbo mode. Some applications are split into several parts inside one TAP file. For example DEMO apps where each part is loaded after finish of previous part, or games loading levels by requests. The core pauses the TAP playback after each code part (flag=#255). If application uses standard loader from ROM, then everything will be handled automatically and unnoticeable. If app uses non-standard loader, then there is no way to detect the loading. In this case you need to press **F1 key** to continue/pause TAP playback. Do not press F1 key while data is loading (or you will have to reset and start from beginning). To help operate with TAP (for non-standard loaders) there is special yellow LED signaling:
 - LED is ON: more data is available in TAP file.
@@ -80,8 +86,13 @@ Original +D ROM requires to press additional Y/N keys in 128K mode to choose the
 
 To load snapshot, just mount IMG/MGT and go to basic prompt where type **CAT 1** to list its content. Note the number of snapshot file. Then type **LOAD pX** where X is the number of shapshot file. For other disk commands please find and read G+DOS (MGT +D) manual.
 
-### Multiface 128:
-You can enter Multiface ROM using **RShift+F11**. Multiface 128 includes preloaded debugger where you can trace or modify the game. If you prefer to use bare Multiface 128 ROM then do following procedure: Press and hold **ESC**, then press **RShift+F11**. You will be able to use bare Multiface ROM by simple subsequent presses of **RShift+F11** till core reload. Multiface provides snapshot functionality by saving to IMG/MGT disks. Please find and read Multiface 128 manual. **Note:** Multiface 128 expose its port, thus if game has protection against Multiface, it won't work. The port will start to be exposed after FIRST press of **RShift+F11** till reset. Thus using +D snapshot is prefered.
+### Multiface 128 and Multiface 3:
+You can enter Multiface ROM using **RShift+F11**. Multiface 128 includes preloaded debugger (Genie) where you can trace or modify the game.
+If you prefer to use bare Multiface 128 ROM then do following procedure: Press and hold **ESC**, then press **RShift+F11**.
+You will be able to use bare Multiface ROM by simple subsequent presses of **RShift+F11** till core reload. Multiface provides snapshot functionality by saving to IMG/MGT disks. Please find and read Multiface 128 manual.
+**Note:** Multiface 128 expose its port, thus if game has protection against Multiface, it won't work, unless you press (o)ff before you exit from the Multiface menu. Thus using +D snapshot is prefered.
+When using the Spectrum +2A/3 mode, the Multiface 3 is supported. There's no Genie for the +3, but there are useful toolkit routines in the stock ROM.
+Unfortately save to disk doesn't work yet, since the FDC implementation is read-only currently.
 
 ### Special Keys:
 - Ctrl+F11 - warm reset
