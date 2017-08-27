@@ -92,10 +92,6 @@ module mist_io #(parameter STRLEN=0, parameter PS2DIV=100)
 	output reg  [7:0] ioctl_dout
 );
 
-reg [7:0] b_data;
-reg [7:0] cmd;
-reg [2:0] bit_cnt;    // counts bits 0-7 0-7 ...
-reg [9:0] byte_cnt;   // counts bytes
 reg [7:0] but_sw;
 reg [2:0] stick_idx;
 
@@ -113,79 +109,59 @@ wire [7:0] core_type = 8'ha4;
 // command byte read by the io controller
 wire [7:0] sd_cmd = { 4'h5, sd_conf, sd_sdhc, sd_wr, sd_rd };
 
+reg [7:0] cmd;
+reg [2:0] bit_cnt;    // counts bits 0-7 0-7 ...
+reg [9:0] byte_cnt;   // counts bytes
+
 reg spi_do;
 assign SPI_DO = CONF_DATA0 ? 1'bZ : spi_do;
 
+reg [7:0] spi_data_out;
+
 // SPI transmitter
-always@(negedge SPI_SCK) begin
-	reg [31:0] sd_lba_r;
-	reg  [7:0] sd_cmd_r;
-	
-	if(!CONF_DATA0) begin
-		// first byte returned is always core type, further bytes are 
-		// command dependent
-		if(byte_cnt == 0) begin
-			spi_do   <= core_type[~bit_cnt];
-			if(bit_cnt == 6) begin
-				sd_lba_r <= sd_lba;
-				sd_cmd_r <= sd_cmd;
-			end
-		end else begin
-			case(cmd)
-				// reading config string
-				8'h14: begin
-					// returning a byte from string
-						if(byte_cnt < STRLEN + 1) spi_do <= conf_str[{STRLEN - byte_cnt,~bit_cnt}];
-							else spi_do <= 0;
-					end
-
-				// reading sd card status
-				8'h16: begin
-						if(byte_cnt == 1) spi_do <= sd_cmd_r[~bit_cnt];
-						else if((byte_cnt >= 2) && (byte_cnt < 6)) spi_do <= sd_lba_r[{5-byte_cnt, ~bit_cnt}];
-						else spi_do <= 0;
-					end
-
-				// reading sd card write data
-				8'h18: begin
-						spi_do <= b_data[~bit_cnt];
-					end
-
-				default: begin
-						spi_do <= 0;
-					end
-			endcase
-		end
-   end
-end
+always@(negedge SPI_SCK) spi_do <= spi_data_out[~bit_cnt];
 
 reg [7:0] spi_data_in;
-reg       spi_half_ready = 0;
+reg       spi_data_ready = 0;
 
 // SPI receiver
 always@(posedge SPI_SCK or posedge CONF_DATA0) begin
-	reg [6:0] sbuf;
+	reg [6:0]  sbuf;
+	reg [31:0] sd_lba_r;
 
 	if(CONF_DATA0) begin
 	   bit_cnt <= 0;
 	   byte_cnt <= 0;
-		spi_half_ready <= 0;
+		spi_data_out <= core_type;
 	end
 	else
 	begin
 		bit_cnt <= bit_cnt + 1'd1;
-		sbuf <= { sbuf[5:0], SPI_DI};
-
-		if(bit_cnt == 3) spi_half_ready <= 1;
+		sbuf <= {sbuf[5:0], SPI_DI};
 
 		// finished reading command byte
       if(bit_cnt == 7) begin
-			if(!byte_cnt) cmd <= { sbuf, SPI_DI};
+			if(!byte_cnt) cmd <= {sbuf, SPI_DI};
 
-			spi_data_in <= { sbuf, SPI_DI};
-			spi_half_ready <= 0;
+			spi_data_in <= {sbuf, SPI_DI};
+			spi_data_ready <= ~spi_data_ready;
 			if(~&byte_cnt) byte_cnt <= byte_cnt + 8'd1;
-			b_data <= sd_buff_din;
+			
+			spi_data_out <= 0;
+			case({(!byte_cnt) ? {sbuf, SPI_DI} : cmd})
+				// reading config string
+				8'h14: if(byte_cnt < STRLEN) spi_data_out <= conf_str[(STRLEN - byte_cnt - 1)<<3 +:8];
+
+				// reading sd card status
+				8'h16: if(byte_cnt == 0) begin
+							spi_data_out <= sd_cmd;
+							sd_lba_r <= sd_lba;
+						 end
+						 else if(byte_cnt < 5) spi_data_out <= sd_lba_r[(4-byte_cnt)<<3 +:8];
+
+				// reading sd card write data
+				8'h18: spi_data_out <= sd_buff_din;
+			endcase
 		end
 	end
 end
@@ -194,28 +170,26 @@ end
 always@(posedge clk_sys) begin
 	reg old_ss1, old_ss2;
 	reg old_ready1, old_ready2;
-	reg b_wr;
+	reg [2:0] b_wr;
 
 	old_ss1 <= CONF_DATA0;
 	old_ss2 <= old_ss1;
-	old_ready1 <= spi_half_ready;
+	old_ready1 <= spi_data_ready;
 	old_ready2 <= old_ready1;
 
-	sd_buff_wr <= b_wr;
-	b_wr <= 0;
+	sd_buff_wr <= b_wr[0];
+	if(b_wr[2] && (~&sd_buff_addr)) sd_buff_addr <= sd_buff_addr + 1'b1;
+	b_wr <= (b_wr<<1);
 
 	if(old_ss2) begin
-		sd_ack <= 0;
-		sd_ack_conf <= 0;
+		sd_ack       <= 0;
+		sd_ack_conf  <= 0;
+		sd_buff_addr <= 0;
 	end
 	else
-	if(~old_ready2 & old_ready1) begin
-		if (~&sd_buff_addr) sd_buff_addr <= sd_buff_addr + 1'b1;
-		if (byte_cnt == 0) sd_buff_addr <= 0;
-		if((byte_cnt == 1) && ((cmd == 8'h17) || (cmd == 8'h19))) sd_buff_addr <= 0;
-	end
-	else
-	if(old_ready2 & ~old_ready1) begin
+	if(old_ready2 ^ old_ready1) begin
+
+		if(cmd == 8'h18 && ~&sd_buff_addr) sd_buff_addr <= sd_buff_addr + 1'b1;
 
 		if(byte_cnt < 2) begin
 
