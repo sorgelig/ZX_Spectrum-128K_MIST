@@ -60,7 +60,6 @@ module tape
 localparam  CLOCK = 32'd3500000;
 
 assign rd   = rd_req & rd_en;
-assign addr = size - read_cnt;
 assign dout = data;
 
 reg  [24:0] read_cnt;
@@ -114,6 +113,7 @@ always @(posedge clk_sys) begin
 	old_ready <= tape_ready;
 	if(tape_ready & ~old_ready) begin
 		read_cnt <= tape_size;
+		addr <= 0;
 		size <= tape_size;
 		blk_list[0] <= tape_size;
 		if(!tape_mode && tape_size) begin
@@ -160,6 +160,7 @@ always @(posedge clk_sys) begin
 					else blocksz[15:8] <= din_r;
 				hdrsz <= hdrsz - 1'b1;
 				read_cnt <= read_cnt - 1'b1;
+				addr <= addr + 1'b1;
 			end
 
 			if(!play_pause & (read_cnt || state)) begin
@@ -215,6 +216,7 @@ always @(posedge clk_sys) begin
 										read_done <= 0;
 										data <= din_r;
 										read_cnt <= read_cnt - 1'b1;
+										addr <= addr + 1'b1;
 										bitcnt <= 8;
 										if(skip || turboskip) begin
 											blocksz <= blocksz - 1'b1;
@@ -286,10 +288,13 @@ always @(posedge clk_sys) begin
 			if(prev & ~old_prev & ~turbo) begin 
 				play_pause <= 0;
 				auto_blk   <= 0;
-				if((state>3) || !blk_num) read_cnt <= blk_list[blk_num];
-				else begin 
+				if((state>3) || !blk_num) begin
+					read_cnt <= blk_list[blk_num];
+					addr <= size - blk_list[blk_num];
+				end else begin
 					blk_num  <= blk_num - 1'b1;
 					read_cnt <= blk_list[blk_num - 1'b1];
+					addr <= size - blk_list[blk_num - 1'b1];
 				end
 				state <= 0;
 				tick <= 0;
@@ -314,6 +319,7 @@ always @(posedge clk_sys) begin
 				if(hdrsz == 6) freq[15:8] <= din_r;
 				read_done <= 0;
 				read_cnt  <= read_cnt - 1'd1;
+				addr <= addr + 1'b1;
 				hdrsz <= hdrsz - 1'd1;
 			end
 
@@ -333,6 +339,7 @@ always @(posedge clk_sys) begin
 
 						read_done <= 0;
 						read_cnt  <= read_cnt - 1'd1;
+						addr <= addr + 1'b1;
 					end
 				end else begin
 					clk_play_cnt <= clk_play_cnt + freq;
