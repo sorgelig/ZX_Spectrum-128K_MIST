@@ -934,7 +934,7 @@ module u765_dpram #(parameter DATAWIDTH=8, ADDRWIDTH=10)
 
 logic [DATAWIDTH-1:0] ram[0:(1<<ADDRWIDTH)-1];
 
-always_ff@(negedge clock) begin
+always_ff@(posedge clock) begin
 	if(wren_a) begin
 		ram[address_a] <= data_a;
 		q_a <= data_a;
