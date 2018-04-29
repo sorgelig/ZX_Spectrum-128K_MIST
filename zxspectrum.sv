@@ -72,7 +72,7 @@ localparam CONF_STR = {
 	"O6,Fast tape load,On,Off;",
 	"O89,Video timings,ULA-48,ULA-128,Pentagon;",
 	"OFG,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
-	"OAC,Memory,Standard 128K,Pentagon 512K,Profi 1024K,Standard 48K,+2A/+3;",
+	"OAC,Memory,Standard 128K,Pentagon 1024K,Profi 1024K,Standard 48K,+2A/+3;",
 	"ODE,Features,ULA+ & Timex,ULA+,Timex,None;",
 	"V,v3.40.",`BUILD_DATE
 };
@@ -379,19 +379,21 @@ vram vram
 );
 
 reg        zx48;
-reg        p512;
+reg        p1024;
 reg        pf1024;
 reg        plus3;
 reg        page_scr_copy;
 reg        shadow_rom;
 reg  [7:0] page_reg;
 reg  [7:0] page_reg_plus3;
-wire       page_disable = zx48 | page_reg[5];
+reg  [7:0] page_reg_p1024;
+wire       page_disable = zx48 | (~p1024 & page_reg[5]) | (p1024 & page_reg_p1024[2] & page_reg[5]);
 wire       page_scr     = page_reg[3];
 wire [5:0] page_ram     = {page_128k, page_reg[2:0]};
-wire       page_write   = ~addr[15] & ~addr[1] & (addr[14] | ~plus3) & ~page_disable;
-wire       page_write_plus3 = ~addr[1] & addr[12] & ~addr[13] & ~addr[14] & ~addr[15] & plus3 & ~page_disable;
+wire       page_write   = ~addr[15] & ~addr[1] & (addr[14] | ~plus3) & ~page_disable; //7ffd
+wire       page_write_plus3 = ~addr[1] & addr[12] & ~addr[13] & ~addr[14] & ~addr[15] & plus3 & ~page_disable; //1ffd
 wire       page_special = page_reg_plus3[0];
+wire       page_p1024 = addr[15] & addr[14] & addr[13] & ~addr[12] & ~addr[3]; //eff7
 reg  [2:0] page_128k;
 
 reg  [3:0] page_rom;
@@ -417,9 +419,10 @@ always @(posedge clk_sys) begin
 		page_scr_copy <= 0;
 		page_reg   <= 0;
 		page_reg_plus3 <= 0;
+		page_reg_p1024 <= 0;
 		page_128k  <= 0;
 		shadow_rom <= shdw_reset & ~plusd_en;
-		p512  <= (status[12:10] == 1);
+		p1024  <= (status[12:10] == 1);
 		pf1024<= (status[12:10] == 2);
 		zx48  <= (status[12:10] == 3);
 		plus3 <= (status[12:10] == 4);
@@ -430,12 +433,13 @@ always @(posedge clk_sys) begin
 		if(io_wr & ~old_wr) begin
 			if(page_write) begin
 				page_reg  <= cpu_dout;
-				if(p512)  page_128k[1:0] <= cpu_dout[7:6];
+				if(p1024 & ~page_reg_p1024[2])	page_128k[2:0] <= { cpu_dout[5], cpu_dout[7:6] };
 				if(~plusd_mem) page_scr_copy <= page_reg[3];
 			end else if (page_write_plus3) begin
 				page_reg_plus3 <= cpu_dout;
 			end
 			if(pf1024 & (addr == 'hDFFD)) page_128k <= cpu_dout[2:0];
+			if(p1024 & page_p1024) page_reg_p1024 <= cpu_dout;
 		end
 	end
 end
