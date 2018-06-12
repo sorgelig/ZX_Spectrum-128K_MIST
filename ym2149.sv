@@ -13,8 +13,9 @@ module ym2149
    output [7:0] CHANNEL_B, // PSG Output channel B
    output [7:0] CHANNEL_C, // PSG Output channel C
 
-   input        SEL,
-   input        MODE,
+   input        SEL,			// MSB of p_divider (N111)
+   input        MODE,		// 1 - AY; 0 - YM volume table
+   output [5:0] ACTIVE,		// Returns non-zero if AY is actively playing something
 
 	input  [7:0] IOA_in,
 	output [7:0] IOA_out,
@@ -26,13 +27,19 @@ module ym2149
 assign     IOA_out = ymreg[14];
 assign     IOB_out = ymreg[15];
 
+// Determine if chip has any output on, based on lower 6 bits of R7 - Mixer Control-I/O Enable register
+// [0:2] - Tone enable, [3:5] - Noise Enable
+// Any bit set means that chip is in use
+assign 	   ACTIVE = ~ymreg[7][5:0];
+
 reg        ena_div;
 reg        ena_div_noise;
-reg [3:0]  addr;
-reg [7:0]  ymreg[16];
+reg [3:0]  addr;				// Register address
+reg [7:0]  ymreg[16];		// Registers array
 reg        env_ena;
 reg [4:0]  env_vol;
 
+// Volume table for AY8910/8912 chips (4 bit, 16 values, logarithmic)
 wire [7:0] volTableAy[16] = 
        '{8'h00, 8'h03, 8'h04, 8'h06, 
 		   8'h0a, 8'h0f, 8'h15, 8'h22, 
@@ -40,6 +47,7 @@ wire [7:0] volTableAy[16] =
 		   8'h90, 8'hb5, 8'hd7, 8'hff
 		 };
 
+// Volume table for YM2149(F) chips (5 bit, 32 values, logarithmic)
 wire [7:0] volTableYm[32] = 
 		'{8'h00, 8'h01, 8'h01, 8'h02, 
 		  8'h02, 8'h03, 8'h03, 8'h04, 
@@ -54,6 +62,7 @@ wire [7:0] volTableYm[32] =
 // Read from AY
 assign DO = dout;
 reg [7:0] dout;
+
 always_comb begin
 	case(addr)
 		 0: dout = ymreg[0];
