@@ -4,7 +4,7 @@ Some verilog models from Till Harbaum [Spectrum](https://github.com/mist-devel/m
 
 ### Features:
 - Fully functional ZX Spectrum 48K, 128K, +3 and Pentagon 128 with correct CPU and Video timings.
-- Pentagon 512K and Profi 1024K memory interfaces.
+- Pentagon 1024K and Profi 1024K memory interfaces.
 - Turbo 7MHz, 14MHz, 28MHz, 56MHz.
 - ULA+ v1.1 programmable palettes with extended Timex control.
 - Timex HiColor, HiRes modes.
@@ -17,6 +17,7 @@ Some verilog models from Till Harbaum [Spectrum](https://github.com/mist-devel/m
 - Native TAP with turbo loading. Fast loading for TAP and CSW.
 - Kempston Mouse and Joystick.
 - Sinclair Joystick I
+- Turbo-Sound interface (dual YM2149 sound chips)
 - Audio in from real [tape device](http://www.atari-forum.com/viewtopic.php?p=298401#p298401)
 
 **Core requires MiST firmware update to build 2016/06/26 or newer!**
@@ -38,7 +39,7 @@ then issue **RANDOMIZE USR 15616**. Use command **RETURN** to leave TR-DOS.
 **MGT** is G+DOS and MasterDOS (SAM Coupe) image. It's similar to IMG but uses different layout. The main purpose is to transfer data to/from SAM Coupe.
 
 **DSK** +3 disk format. In none- +3 modes, +D tries to mount it, however +3 disk images are not compatible with G+DOS.
-The original +3 disk drive is a single-sided single-destiny drive, but this core supports double-sided double-destiny images, too.
+The original +3 disk drive is a 170K single-sided double-density drive, but this core supports 720K double-sided double-density images, too.
 An empty [DSDD image](https://github.com/sorgelig/ZX_Spectrum-128K_MIST/tree/master/releases/dsdd720k.dsk.gz) is great for saving from Multiface.
 ***Note:*** in +3 mode, both the Beta and the +3 disk drive are supported, but only one image can be mounted, so both cannot be used at the same time.
 
@@ -68,7 +69,7 @@ You can control CPU speed by following keys:
 It's useful to switch to maximum speed when you are loading tape in normal mode. Due to SDRAM speed limitation 28MHz and 56MHz speeds include wait states, so effective CPU speed is lower than nominal.
 
 ### Memory Configurations with extra RAM:
-- **Pentagon 512K** uses bits 6 and 7 in port 7FFD to access additional memory.
+- **Pentagon 1024K** uses bits 5, 6 and 7 in port 7FFD to access additional memory. Port EFFD/bit 2 restores 7FFD/bit 5 original functionality (disable paging).
 - **Profi 1024K** uses bits 0-2 in port DFFD to access additional memory.
 
 ### Mouse and Joystick:

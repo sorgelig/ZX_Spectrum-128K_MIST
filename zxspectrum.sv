@@ -473,7 +473,8 @@ wire       psg_enable = addr[0] & addr[15] & ~addr[1];
 wire       psg_we     = psg_enable & ~nIORQ & ~nWR & nM1;
 reg        psg_reset;
 
-ym2149 ym2149
+// Turbosound card (Dual AY/YM chips)
+turbosound turbosound
 (
 	.CLK(clk_sys),
 	.CE(ce_psg),
@@ -729,6 +730,7 @@ wire        tape_vin;
 smart_tape tape
 (
 	.*,
+	.reset(reset & ~warm_reset),
 	.ce(ce_cpu),
 
 	.turbo(tape_turbo),

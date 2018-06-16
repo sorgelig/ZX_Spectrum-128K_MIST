@@ -333,6 +333,7 @@ set_global_assignment -name VHDL_FILE t80/T80_ALU.vhd
 set_global_assignment -name VHDL_FILE t80/T80.vhd
 set_global_assignment -name VERILOG_FILE pll.v
 set_global_assignment -name SYSTEMVERILOG_FILE sram.sv
+set_global_assignment -name SYSTEMVERILOG_FILE turbosound.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ym2149.sv
 set_global_assignment -name VERILOG_FILE sigma_delta_dac.v
 set_global_assignment -name SYSTEMVERILOG_FILE tape.sv
