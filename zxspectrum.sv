@@ -694,6 +694,7 @@ wd1793 #(1) fdd
 u765 u765
 (
 	.clk_sys(clk_sys),
+	.ce(ce_cpu),
 	.reset(reset),
 	.a0(addr[12]),
 	.ready(plus3_fdd_ready),
