@@ -81,12 +81,12 @@ localparam CONF_STR = {
 ////////////////////   CLOCKS   ///////////////////
 wire clk_sys;
 wire locked;
+assign SDRAM_CLK = clk_sys;
 
 pll pll
 (
 	.inclk0(CLOCK_27),
 	.c0(clk_sys),
-	.c1(SDRAM_CLK),
 	.locked(locked)
 );
 
@@ -97,12 +97,16 @@ reg  ce_28m;
 
 reg  pause;
 reg  cpu_en = 1;
+wire cpu_tp;
 reg  ce_cpu_tp;
 reg  ce_cpu_tn;
 
 wire ce_cpu_p = cpu_en & cpu_p;
 wire ce_cpu_n = cpu_en & cpu_n;
-wire ce_cpu   = cpu_en & ce_cpu_tp;
+//duplicate ce_cpu_tp to achieve better fit, higher FMax
+reg  ce_wd1793;
+reg  ce_u765;
+reg  ce_tape;
 
 wire cpu_p = ~&turbo ? ce_cpu_tp : ce_cpu_sp;
 wire cpu_n = ~&turbo ? ce_cpu_tn : ce_cpu_sn;
@@ -117,7 +121,12 @@ always @(negedge clk_sys) begin
 	ce_7mn  <=  counter[3] & !counter[2:0];
 	ce_psg  <= !counter[5:0] & ~pause;
 
-	ce_cpu_tp <= !(counter & turbo);
+	cpu_tp    = !(counter & turbo);
+	ce_cpu_tp <= cpu_tp;
+	ce_wd1793 <= cpu_tp;
+	ce_u765   <= cpu_tp;
+	ce_tape   <= cpu_tp;
+
 	ce_cpu_tn <= !((counter & turbo) ^ turbo ^ turbo[4:1]);
 end
 
@@ -150,9 +159,7 @@ always @(posedge clk_sys) begin
 			turbo   <= turbo_req;
 		end else if(!cpu_en & !timeout & ram_ready) begin
 			cpu_en  <= ~pause;
-		end else if(!turbo[4:2] & !ram_ready) begin // SDRAM wait for 28MHz/56MHz turbo
-			cpu_en  <= 0;
-		end else if(!turbo[4:3] & !ram_ready & tape_active) begin // SDRAM wait for TAPE load on 14MHz
+		end else if(!turbo[4:3] & !ram_ready) begin // SDRAM wait for 14MHz/28MHz/56MHz turbo
 			cpu_en  <= 0;
 		end else if(cpu_en & pause) begin
 			cpu_en  <= 0;
@@ -283,7 +290,7 @@ always_comb begin
 	endcase
 end
 
-reg init_reset = 1;
+(* maxfan = 5 *) reg init_reset = 1;
 always @(posedge clk_sys) begin
 	reg old_download;
 	old_download <= ioctl_download;
@@ -378,10 +385,10 @@ vram vram
     .q(vram_dout)
 );
 
-reg        zx48;
-reg        p1024;
-reg        pf1024;
-reg        plus3;
+(* maxfan = 10 *) reg	zx48;
+(* maxfan = 10 *) reg	p1024;
+(* maxfan = 10 *) reg	pf1024;
+(* maxfan = 10 *) reg	plus3;
 reg        page_scr_copy;
 reg        shadow_rom;
 reg  [7:0] page_reg;
@@ -511,8 +518,8 @@ sigma_delta_dac #(9) dac_r
 
 
 ////////////////////   VIDEO   ///////////////////
-wire        ce_cpu_sn;
-wire        ce_cpu_sp;
+(* maxfan = 10 *) wire        ce_cpu_sn;
+(* maxfan = 10 *) wire        ce_cpu_sp;
 wire [14:0] vram_addr;
 wire  [7:0] vram_dout;
 wire  [7:0] port_ff;
@@ -654,7 +661,7 @@ end
 wd1793 #(1) fdd
 (
 	.clk_sys(clk_sys),
-	.ce(ce_cpu),
+	.ce(ce_wd1793),
 	.reset((fdd_reset & ~plusd_en) | reset),
 	.io_en((fdd_sel2 | (fdd_sel & ~addr[7])) & ~nIORQ & nM1),
 	.rd(~nRD),
@@ -694,7 +701,7 @@ wd1793 #(1) fdd
 u765 u765
 (
 	.clk_sys(clk_sys),
-	.ce(ce_cpu),
+	.ce(ce_u765),
 	.reset(reset),
 	.a0(addr[12]),
 	.ready(plus3_fdd_ready),
@@ -732,7 +739,7 @@ smart_tape tape
 (
 	.*,
 	.reset(reset & ~warm_reset),
-	.ce(ce_cpu),
+	.ce(ce_tape),
 
 	.turbo(tape_turbo),
 	.pause(Fn[1]),
