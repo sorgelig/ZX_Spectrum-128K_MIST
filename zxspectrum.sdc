@@ -43,8 +43,8 @@ set_output_delay -clock [get_clocks {pll|altpll_component|auto_generated|pll1|cl
 set_output_delay -clock [get_clocks {pll|altpll_component|auto_generated|pll1|clk[0]}] -min -0.8 [get_ports {SDRAM_D* SDRAM_A* SDRAM_BA* SDRAM_n* SDRAM_CKE}]
 
 # Effective clock is only half of the system clock, so allow 2 clock cycles for the paths in the T80 cpu
-set_multicycle_path -from {T80pa:cpu|*} -setup 2
-set_multicycle_path -from {T80pa:cpu|*} -hold 2
+set_multicycle_path -from {T80pa:cpu|T80:u0|*} -setup 2
+set_multicycle_path -from {T80pa:cpu|T80:u0|*} -hold 2
 
 # The CE is only active in every 2 clocks, so allow 2 clock cycles
 set_multicycle_path -to {smart_tape:tape|tape:tape|addr[*]} -setup 2
