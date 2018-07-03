@@ -81,12 +81,12 @@ localparam CONF_STR = {
 ////////////////////   CLOCKS   ///////////////////
 wire clk_sys;
 wire locked;
-assign SDRAM_CLK = clk_sys;
 
 pll pll
 (
 	.inclk0(CLOCK_27),
 	.c0(clk_sys),
+	.c1(SDRAM_CLK),
 	.locked(locked)
 );
 
