@@ -84,7 +84,16 @@ module mist_io #(parameter STRLEN=0, parameter PS2DIV=100)
 	output            ps2_mouse_clk,
 	output reg        ps2_mouse_data,
 
+	// ps2 alternative interface. 
+
+	// [8] - extended, [9] - pressed, [10] - toggles with every press/release
+	output reg [10:0] ps2_key = 0,
+
+	// [24] - toggles with every event
+	output reg [24:0] ps2_mouse = 0,
+
 	// ARM -> FPGA download
+	input             ioctl_ce,
 	output reg        ioctl_download = 0, // signal indicating an active download
 	output reg  [7:0] ioctl_index,        // menu index used to upload the file
 	output reg        ioctl_wr = 0,
@@ -166,25 +175,40 @@ always@(posedge SPI_SCK or posedge CONF_DATA0) begin
 	end
 end
 
+reg [31:0] ps2_key_raw = 0;
+wire       pressed  = (ps2_key_raw[15:8] != 8'hf0);
+wire       extended = (~pressed ? (ps2_key_raw[23:16] == 8'he0) : (ps2_key_raw[15:8] == 8'he0));
+
 // transfer to clk_sys domain
 always@(posedge clk_sys) begin
 	reg old_ss1, old_ss2;
 	reg old_ready1, old_ready2;
 	reg [2:0] b_wr;
+	reg       got_ps2 = 0;
 
 	old_ss1 <= CONF_DATA0;
 	old_ss2 <= old_ss1;
 	old_ready1 <= spi_data_ready;
 	old_ready2 <= old_ready1;
-
+	
 	sd_buff_wr <= b_wr[0];
 	if(b_wr[2] && (~&sd_buff_addr)) sd_buff_addr <= sd_buff_addr + 1'b1;
 	b_wr <= (b_wr<<1);
 
 	if(old_ss2) begin
+		got_ps2      <= 0;
 		sd_ack       <= 0;
 		sd_ack_conf  <= 0;
 		sd_buff_addr <= 0;
+		if(got_ps2) begin
+			if(cmd == 4) ps2_mouse[24] <= ~ps2_mouse[24]; 
+			if(cmd == 5) begin
+				ps2_key <= {~ps2_key[10], pressed, extended, ps2_key_raw[7:0]};
+				if(ps2_key_raw == 'hE012E07C) ps2_key[9:0] <= 'h37C; // prnscr pressed
+				if(ps2_key_raw == 'h7CE0F012) ps2_key[9:0] <= 'h17C; // prnscr released
+				if(ps2_key_raw == 'hF014F077) ps2_key[9:0] <= 'h377; // pause  pressed
+			end
+		end
 	end
 	else
 	if(old_ready2 ^ old_ready1) begin
@@ -197,6 +221,7 @@ always@(posedge clk_sys) begin
 			if((cmd == 8'h17) || (cmd == 8'h18)) sd_ack <= 1;
 			mount_strobe <= 0;
 
+			if(cmd == 5) ps2_key_raw <= 0;
 		end else begin
 		
 			case(cmd)
@@ -207,12 +232,20 @@ always@(posedge clk_sys) begin
 
 				// store incoming ps2 mouse bytes 
 				8'h04: begin
+						got_ps2 <= 1;
+						case(byte_cnt)
+							2: ps2_mouse[7:0]   <= spi_data_in;
+							3: ps2_mouse[15:8]  <= spi_data_in;
+							4: ps2_mouse[23:16] <= spi_data_in;
+						endcase 
 						ps2_mouse_fifo[ps2_mouse_wptr] <= spi_data_in; 
 						ps2_mouse_wptr <= ps2_mouse_wptr + 1'd1;
 					end
 
 				// store incoming ps2 keyboard bytes 
 				8'h05: begin
+						got_ps2 <= 1;
+						ps2_key_raw[31:0] <= {ps2_key_raw[23:0], spi_data_in}; 						
 						ps2_kbd_fifo[ps2_kbd_wptr] <= spi_data_in; 
 						ps2_kbd_wptr <= ps2_kbd_wptr + 1'd1;
 					end
@@ -423,14 +456,9 @@ always@(posedge SPI_SCK, posedge SPI_SS2) begin
 
 	if(SPI_SS2) cnt <= 0;
 	else begin
-		rclk <= 0;
-
 		// don't shift in last bit. It is evaluated directly
 		// when writing to ram
 		if(cnt != 15) sbuf <= { sbuf[5:0], SPI_DI};
-
-		// increase target address after write
-		if(rclk) addr <= addr + 1'd1;
 
 		// count 0-7 8-15 8-15 ... 
 		if(cnt < 15) cnt <= cnt + 1'd1;
@@ -459,7 +487,8 @@ always@(posedge SPI_SCK, posedge SPI_SS2) begin
 		if((cmd == UIO_FILE_TX_DAT) && (cnt == 15)) begin
 			addr_w <= addr;
 			data_w <= {sbuf, SPI_DI};
-			rclk <= 1;
+			addr <= addr + 1'd1;
+			rclk <= ~rclk;
 		end
 
       // expose file (menu) index
@@ -467,21 +496,23 @@ always@(posedge SPI_SCK, posedge SPI_SS2) begin
 	end
 end
 
-// transfer to clk_sys domain.
+// transfer to ioctl_clk domain.
 // ioctl_index is set before ioctl_download, so it's stable already
 always@(posedge clk_sys) begin
 	reg        rclkD, rclkD2;
 
-	ioctl_download <= rdownload;
+	if(ioctl_ce) begin
+		ioctl_download <= rdownload;
 
-	rclkD    <= rclk;
-	rclkD2   <= rclkD;
-	ioctl_wr <= 0;
+		rclkD    <= rclk;
+		rclkD2   <= rclkD;
+		ioctl_wr <= 0;
 
-	if(rclkD & ~rclkD2) begin
-		ioctl_dout <= data_w;
-		ioctl_addr <= addr_w;
-		ioctl_wr   <= 1;
+		if(rclkD != rclkD2) begin
+			ioctl_dout <= data_w;
+			ioctl_addr <= addr_w;
+			ioctl_wr   <= 1;
+		end
 	end
 end
 

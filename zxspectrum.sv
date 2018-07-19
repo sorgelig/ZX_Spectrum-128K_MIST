@@ -169,10 +169,8 @@ end
 
 
 //////////////////   MIST ARM I/O   ///////////////////
-wire        ps2_kbd_clk;
-wire        ps2_kbd_data;
-wire        ps2_mouse_clk;
-wire        ps2_mouse_data;
+wire [10:0] ps2_key;
+wire [24:0] ps2_mouse;
 
 wire  [7:0] joystick_0;
 wire  [7:0] joystick_1;
@@ -212,12 +210,17 @@ wire  [7:0] ioctl_index;
 mist_io #(.STRLEN(($size(CONF_STR)>>3)+5)) mist_io
 (
 	.*,
+	.ioctl_ce(1),
 	.conf_str({CONF_STR, plusd_en ? CONF_PLUSD : CONF_BDI}),
 	.sd_conf(0),
 	.sd_sdhc(1),
 	.sd_ack_conf(),
 
 	// unused
+	.ps2_kbd_clk(),
+	.ps2_kbd_data(),
+	.ps2_mouse_clk(),
+	.ps2_mouse_data(),
 	.joystick_analog_0(),
 	.joystick_analog_1()
 );
@@ -236,7 +239,7 @@ wire        nRFSH;
 wire        nBUSACK;
 wire        nINT;
 wire        nBUSRQ = ~ioctl_download;
-wire        reset  = buttons[1] | status[0] | cold_reset | warm_reset | shdw_reset;
+wire        reset  = buttons[1] | status[0] | cold_reset | warm_reset | shdw_reset | Fn[10];
 
 wire        cold_reset = cold_reset_btn | init_reset;
 wire        warm_reset = warm_reset_btn;
@@ -418,24 +421,37 @@ always_comb begin
 end
 
 always @(posedge clk_sys) begin
-	reg old_wr, old_m1;
+	reg old_wr, old_m1, old_reset;
+	reg [2:0] rmod;
+
 	old_wr <= io_wr;
 	old_m1 <= m1;
+	
+	old_reset <= reset;
+	if(~old_reset & reset) rmod <= mod;
 
 	if(reset) begin
 		page_scr_copy <= 0;
-		page_reg   <= 0;
-		page_reg_plus3 <= 0;
+		page_reg    <= 0;
+		page_reg_plus3 <= 0; 
 		page_reg_p1024 <= 0;
-		page_128k  <= 0;
+		page_128k   <= 0;
+		page_reg[4] <= Fn[10];
+		page_reg_plus3[2] <= Fn[10];
 		shadow_rom <= shdw_reset & ~plusd_en;
-		p1024  <= (status[12:10] == 1);
-		pf1024<= (status[12:10] == 2);
-		zx48  <= (status[12:10] == 3);
-		plus3 <= (status[12:10] == 4);
+		if(Fn[10] && (rmod == 1)) begin
+			p1024  <= 0;
+			pf1024 <= 0;
+			zx48   <= ~plus3;
+		end else begin
+			p1024 <= (status[12:10] == 1);
+			pf1024<= (status[12:10] == 2);
+			zx48  <= (status[12:10] == 3);
+			plus3 <= (status[12:10] == 4);
+		end
 	end else begin
 		if(m1 && ~old_m1 && addr[15:14]) shadow_rom <= 0;
-		if(m1 && ~old_m1 && ~plusd_en && ~mod[0] && (addr == 'h66) && ~plus3) shadow_rom <= 1;
+		if(m1 && ~old_m1 && ~plusd_en && ~mod[0] && (addr == 'h66) && ~plus3) shadow_rom <= 1; 
 
 		if(io_wr & ~old_wr) begin
 			if(page_write) begin
@@ -443,7 +459,7 @@ always @(posedge clk_sys) begin
 				if(p1024 & ~page_reg_p1024[2])	page_128k[2:0] <= { cpu_dout[5], cpu_dout[7:6] };
 				if(~plusd_mem) page_scr_copy <= page_reg[3];
 			end else if (page_write_plus3) begin
-				page_reg_plus3 <= cpu_dout;
+				page_reg_plus3 <= cpu_dout; 
 			end
 			if(pf1024 & (addr == 'hDFFD)) page_128k <= cpu_dout[2:0];
 			if(p1024 & page_p1024) page_reg_p1024 <= cpu_dout;
@@ -550,8 +566,11 @@ wire  [7:0] mouse_data;
 mouse mouse( .*, .reset(cold_reset), .addr(addr[10:8]), .sel(), .dout(mouse_data));
 
 always @(posedge clk_sys) begin
+	reg old_status = 0;
+	old_status <= ps2_mouse[24];
+
 	if(joystick_0[5:0]) mouse_sel <= 0;
-	if(~ps2_mouse_clk) mouse_sel <= 1;
+	if(old_status != ps2_mouse[24]) mouse_sel <= 1;
 end
 
 
@@ -738,7 +757,7 @@ wire        tape_vin;
 smart_tape tape
 (
 	.*,
-	.reset(reset & ~warm_reset),
+	.reset(reset & ~Fn[10]),
 	.ce(ce_tape),
 
 	.turbo(tape_turbo),

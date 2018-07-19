@@ -42,8 +42,7 @@ module keyboard
 	input             reset,
 	input             clk_sys,
 
-	input             ps2_kbd_clk,
-	input             ps2_kbd_data,
+	input      [10:0] ps2_key,
 
 	input      [15:0] addr,
 	output      [4:0] key_data,
@@ -52,10 +51,6 @@ module keyboard
 	output reg  [2:0] mod = 0
 );
 
-reg  [3:0] prev_clk  = 0;
-reg [11:0] shift_reg = 12'hFFF;
-wire[11:0] kdata = {ps2_kbd_data,shift_reg[11:1]};
-wire [7:0] kcode = kdata[9:2];
 reg  [4:0] keys[7:0];
 reg        release_btn = 0;
 reg  [7:0] code;
@@ -246,8 +241,14 @@ always @(posedge clk_sys) begin
 	end
 end
 
-reg [8:0] auto[14] = '{
+reg [8:0] auto[46] = '{
 	255,
+
+	0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,
+
 	{1'b1, 8'h59}, // right shift
 	{1'b1, 8'h11}, // alt
 	{1'b1, 8'h14}, // ctrl
@@ -267,39 +268,22 @@ always @(posedge clk_sys) begin
 	integer div;
 	reg [5:0] auto_pos = 0;
 	reg old_reset = 0;
-	reg action = 0;
-	old_reset <= reset;
+	reg old_state;
+
 	input_strobe <= 0;
+	old_reset <= reset;
+	old_state <= ps2_key[10];
 
 	if(~old_reset & reset)begin
-		prev_clk  <= 0;
-		shift_reg <= 12'hFFF;
+		auto_pos <= 0;
 	end else begin
 		if(auto[auto_pos] == 255) begin
 			div <=0;
-			prev_clk <= {ps2_kbd_clk,prev_clk[3:1]};
-			if(prev_clk == 1) begin
-				if (kdata[11] & ^kdata[10:2] & ~kdata[1] & kdata[0]) begin
-					shift_reg <= 12'hFFF;
-					if (kcode == 8'he0) ;
-					// Extended key code follows
-					else if (kcode == 8'hf0)
-						// Release code follows
-						action <= 1;
-					else begin
-						// Cancel extended/release flags for next time
-						action <= 0;
-						release_btn <= action;
-						code <= kcode;
-						if((kcode == 9) && !mod) begin // F10
-							if(action) auto_pos <= 1;
-						end else begin
-							input_strobe <= 1;
-						end
-					end
-				end else begin
-					shift_reg <= kdata;
-				end
+			if(old_state != ps2_key[10]) begin
+				release_btn <= ~ps2_key[9];
+				code <= ps2_key[7:0];
+				input_strobe <= 1;
+				if((ps2_key[8:0] == 9) && ~ps2_key[9]) auto_pos <= 1; // F10
 			end
 		end else begin
 			div <= div + 1;
