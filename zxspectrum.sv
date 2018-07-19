@@ -358,7 +358,7 @@ always_comb begin
 	endcase
 end
 
-sram ram
+sdram ram
 (
 	.*,
 	.init(~locked),

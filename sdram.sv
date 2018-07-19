@@ -1,5 +1,5 @@
 //
-// sram.v
+// sdram.v
 //
 // Static RAM controller implementation using SDRAM MT48LC16M16A2
 //
@@ -26,7 +26,7 @@
 // v2.1 - Add universal 8/16 bit mode.
 //
 
-module sram
+module sdram
 (
    input             init,        // reset to initialize RAM
    input             clk,         // clock ~100MHz
