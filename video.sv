@@ -133,8 +133,8 @@ always @(posedge clk_sys) begin
 				else if (vc == 256) VSync <= 0;
 		end
 
-		if( mZX && (vc == 248) && (hc == (m128 ? 6 : 2))) INT <= 1;
-		if(!mZX && (vc == 239) && (hc == 324)) INT <= 1;
+		if( mZX && (vc == 248) && (hc == (m128 ? 8 : 4))) INT <= 1;
+		if(!mZX && (vc == 239) && (hc == 326)) INT <= 1;
 
 		if(INT)  INTCnt <= INTCnt + 1'd1;
 		if(!INTCnt) INT <= 0;
