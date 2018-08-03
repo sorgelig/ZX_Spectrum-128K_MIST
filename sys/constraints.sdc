@@ -48,6 +48,9 @@ set_output_delay -clock [get_clocks {pll|altpll_component|auto_generated|pll1|cl
 set_multicycle_path -to [get_ports {VGA_*}] -setup 5
 set_multicycle_path -to [get_ports {VGA_*}] -hold 5
 
+set_multicycle_path -from {video:video|video_mixer:video_mixer|scandoubler:scandoubler|Hq2x:Hq2x|*} -setup 6
+set_multicycle_path -from {video:video|video_mixer:video_mixer|scandoubler:scandoubler|Hq2x:Hq2x|*} -hold 6
+
 # Effective clock is only half of the system clock, so allow 2 clock cycles for the paths in the T80 cpu
 set_multicycle_path -from {T80pa:cpu|T80:u0|*} -setup 2
 set_multicycle_path -from {T80pa:cpu|T80:u0|*} -hold 2
@@ -87,29 +90,26 @@ set_multicycle_path -to {wd1793:fdd|wait_time[*]} -hold 2
 
 set_multicycle_path -from {u765:u765|u765_dpram:sbuf|*} -setup 2
 set_multicycle_path -from {u765:u765|u765_dpram:sbuf|*} -hold 2
-
 set_multicycle_path -from {u765:u765|altsyncram:image_track_offsets_rtl_0|*} -setup 2
 set_multicycle_path -from {u765:u765|altsyncram:image_track_offsets_rtl_0|*} -hold 2
-
-set_multicycle_path -to {u765:u765|seek_pos[*]} -setup 2
-set_multicycle_path -to {u765:u765|seek_pos[*]} -hold 2
+set_multicycle_path -to {u765:u765|i_*} -setup 2
+set_multicycle_path -to {u765:u765|i_*} -hold 2
+set_multicycle_path -to {u765:u765|i_*[*]} -setup 2
+set_multicycle_path -to {u765:u765|i_*[*]} -hold 2
+set_multicycle_path -to {u765:u765|pcn[*]} -setup 2
+set_multicycle_path -to {u765:u765|pcn[*]} -hold 2
+set_multicycle_path -to {u765:u765|ncn[*]} -setup 2
+set_multicycle_path -to {u765:u765|ncn[*]} -hold 2
 set_multicycle_path -to {u765:u765|state[*]} -setup 2
 set_multicycle_path -to {u765:u765|state[*]} -hold 2
 set_multicycle_path -to {u765:u765|status[*]} -setup 2
 set_multicycle_path -to {u765:u765|status[*]} -hold 2
-set_multicycle_path -to {u765:u765|image_track_offsets_addr[*]} -setup 2
-set_multicycle_path -to {u765:u765|image_track_offsets_addr[*]} -hold 2
-set_multicycle_path -to {u765:u765|buff_addr[*]} -setup 2
-set_multicycle_path -to {u765:u765|buff_addr[*]} -hold 2
-set_multicycle_path -to {u765:u765|bytes_to_read[*]} -setup 2
-set_multicycle_path -to {u765:u765|bytes_to_read[*]} -hold 2
-set_multicycle_path -to {u765:u765|timeout[*]} -setup 2
-set_multicycle_path -to {u765:u765|timeout[*]} -hold 2
+set_multicycle_path -to {u765:u765|i_rpm_time[*][*][*]} -setup 8
+set_multicycle_path -to {u765:u765|i_rpm_time[*][*][*]} -hold 8
 
 # False paths
 
-# Don't bother optimizing Hq2x and sigma_delta_dac
-set_false_path -to {video:video|video_mixer:video_mixer|scandoubler:scandoubler|Hq2x:Hq2x|*}
+# Don't bother optimizing sigma_delta_dac
 set_false_path -to {sigma_delta_dac:*}
 
 #set_false_path -to [get_ports {VGA_*}]
