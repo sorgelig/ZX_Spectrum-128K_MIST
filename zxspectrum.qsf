@@ -286,6 +286,8 @@ set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
 set_global_assignment -name PRE_FLOW_SCRIPT_FILE "quartus_sh:build_id_verilog.tcl"
 set_global_assignment -name OPTIMIZE_IOC_REGISTER_PLACEMENT_FOR_TIMING "PACK ALL IO REGISTERS"
 
+set_global_assignment -name QIP_FILE sys/sys.qip
+set_global_assignment -name QIP_FILE t80/T80.qip
 set_global_assignment -name SYSTEMVERILOG_FILE sdram.sv
 set_global_assignment -name SYSTEMVERILOG_FILE turbosound.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ym2149.sv
@@ -297,18 +299,4 @@ set_global_assignment -name SYSTEMVERILOG_FILE video.sv
 set_global_assignment -name SYSTEMVERILOG_FILE wd1793.sv
 set_global_assignment -name SYSTEMVERILOG_FILE u765.sv
 set_global_assignment -name SYSTEMVERILOG_FILE zxspectrum.sv
-set_global_assignment -name VHDL_FILE t80/T80pa.vhd
-set_global_assignment -name VHDL_FILE t80/T80_Reg.vhd
-set_global_assignment -name VHDL_FILE t80/T80_Pack.vhd
-set_global_assignment -name VHDL_FILE t80/T80_MCode.vhd
-set_global_assignment -name VHDL_FILE t80/T80_ALU.vhd
-set_global_assignment -name VHDL_FILE t80/T80.vhd
-set_global_assignment -name SYSTEMVERILOG_FILE sys/video_mixer.sv
-set_global_assignment -name VERILOG_FILE sys/sigma_delta_dac.v
-set_global_assignment -name VERILOG_FILE sys/scandoubler.v
-set_global_assignment -name VERILOG_FILE sys/pll.v
-set_global_assignment -name VERILOG_FILE sys/osd.v
-set_global_assignment -name VERILOG_FILE sys/mist_io.v
-set_global_assignment -name SYSTEMVERILOG_FILE sys/hq2x.sv
-set_global_assignment -name SDC_FILE sys/constraints.sdc
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
