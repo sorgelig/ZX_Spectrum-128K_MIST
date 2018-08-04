@@ -17,5 +17,4 @@ PLLJ_PLLSPE_INFO.txt
 *.sof
 *.qws
 *.ppf
-*.qip
 build_id.v
