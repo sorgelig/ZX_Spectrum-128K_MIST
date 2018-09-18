@@ -169,7 +169,6 @@ set_global_assignment -name USE_CONFIGURATION_DEVICE OFF
 # SignalTap II Assignments
 # ========================
 set_global_assignment -name ENABLE_SIGNALTAP OFF
-set_global_assignment -name USE_SIGNALTAP_FILE stp1.stp
 
 # Power Estimation Assignments
 # ============================
@@ -296,6 +295,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE keyboard.sv
 set_global_assignment -name VERILOG_FILE mouse.v
 set_global_assignment -name VERILOG_FILE vram.v
 set_global_assignment -name SYSTEMVERILOG_FILE video.sv
+set_global_assignment -name VERILOG_FILE divmmc.v
 set_global_assignment -name SYSTEMVERILOG_FILE wd1793.sv
 set_global_assignment -name SYSTEMVERILOG_FILE u765.sv
 set_global_assignment -name SYSTEMVERILOG_FILE zxspectrum.sv
