@@ -727,6 +727,7 @@ u765 #(20'd1800,1) u765
 	.ready(plus3_fdd_ready),
 	.motor(motor_plus3),
 	.available(2'b01),
+	.fast(1),
 	.nRD(~plus3_fdd | nIORQ | ~nM1 | nRD),
 	.nWR(~plus3_fdd | nIORQ | ~nM1 | nWR),
 	.din(cpu_dout),
