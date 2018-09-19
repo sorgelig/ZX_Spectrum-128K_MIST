@@ -4,5 +4,6 @@ set_global_assignment -name VERILOG_FILE sys/scandoubler.v
 set_global_assignment -name VERILOG_FILE sys/mist_io.v
 set_global_assignment -name VERILOG_FILE sys/osd.v
 set_global_assignment -name VERILOG_FILE sys/sigma_delta_dac.v
+set_global_assignment -name VERILOG_FILE sys/sd_card.v
 set_global_assignment -name SDC_FILE sys/constraints.sdc
 set_global_assignment -name VERILOG_FILE sys/pll.v

@@ -67,13 +67,15 @@ localparam CONF_PLUSD = "(+D) ";
 `include "build_id.v"
 localparam CONF_STR = {
 	"SPECTRUM;;",
-	"S,TRDIMGDSKMGT,Load Disk;",
+	"S1,TRDIMGDSKMGT,Load Disk;",
 	"F,TAPCSW,Load Tape;",
 	"O6,Fast tape load,On,Off;",
 	"O89,Video timings,ULA-48,ULA-128,Pentagon;",
 	"OFG,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OAC,Memory,Standard 128K,Pentagon 1024K,Profi 1024K,Standard 48K,+2A/+3;",
 	"ODE,Features,ULA+ & Timex,ULA+,Timex,None;",
+	"OHI,MMC Card,Off,divMMC,ZXMMC;",
+	"T0,Reset;",
 	"V,v3.40.",`BUILD_DATE
 };
 
@@ -190,16 +192,27 @@ wire 			sd_wr_wd;
 wire [31:0] sd_lba_wd;
 wire [7:0]  sd_buff_din_wd;
 
-wire [31:0] sd_lba = plus3_fdd_ready ? sd_lba_plus3 : sd_lba_wd;
-wire        sd_rd = plus3_fdd_ready ? sd_rd_plus3 : sd_rd_wd;
-wire        sd_wr = plus3_fdd_ready ? sd_wr_plus3 : sd_wr_wd;
+wire        sd_busy_mmc;
+wire        sd_rd_mmc;
+wire        sd_wr_mmc;
+wire [31:0] sd_lba_mmc;
+wire  [7:0] sd_buff_din_mmc;
+
+wire [31:0] sd_lba = sd_busy_mmc ? sd_lba_mmc : (plus3_fdd_ready ? sd_lba_plus3 : sd_lba_wd);
+wire  [1:0] sd_rd = { sd_rd_plus3 | sd_rd_wd, sd_rd_mmc };
+wire  [1:0] sd_wr = { sd_wr_plus3 | sd_wr_wd, sd_wr_mmc };
+
 wire        sd_ack;
 wire  [8:0] sd_buff_addr;
 wire  [7:0] sd_buff_dout;
-wire  [7:0] sd_buff_din = plus3_fdd_ready ? sd_buff_din_plus3 : sd_buff_din_wd;
+wire  [7:0] sd_buff_din = sd_busy_mmc ? sd_buff_din_mmc : (plus3_fdd_ready ? sd_buff_din_plus3 : sd_buff_din_wd);
 wire        sd_buff_wr;
-wire        img_mounted;
+wire  [1:0] img_mounted;
 wire [31:0] img_size;
+
+wire        sd_ack_conf;
+wire        sd_conf;
+wire        sd_sdhc;
 
 wire        ioctl_wr;
 wire [24:0] ioctl_addr;
@@ -212,9 +225,6 @@ mist_io #(.STRLEN(($size(CONF_STR)>>3)+5)) mist_io
 	.*,
 	.ioctl_ce(1),
 	.conf_str({CONF_STR, plusd_en ? CONF_PLUSD : CONF_BDI}),
-	.sd_conf(0),
-	.sd_sdhc(1),
-	.sd_ack_conf(),
 
 	// unused
 	.ps2_kbd_clk(),
@@ -278,18 +288,19 @@ T80pa cpu
 );
 
 always_comb begin
-	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel | fdd_sel2 | plus3_fdd, mf3_port, addr[5:0]==8'h1F, portBF, addr[0], psg_enable, ulap_sel})
-		'b00XXXXXXXX: cpu_din = ram_dout;
-		'b01XXXXXXXX: cpu_din = tape_dout;
-		'b1X01XXXXXX: cpu_din = fdd_dout;
-		'b1X001XXXXX: cpu_din = (addr[14:13] == 2'b11 ? page_reg : page_reg_plus3);
-		'b1X0001XXXX: cpu_din = mouse_sel ? mouse_data : {2'b00, joystick_0[5:0]};
-		'b1X00001XXX: cpu_din = {page_scr_copy, 7'b1111111};
-		'b1X0000011X: cpu_din = (addr[14] ? sound_data : 8'hFF);
-		'b1X00000101: cpu_din = ulap_dout;
-		'b1X00000100: cpu_din = port_ff;
-		'b1X000000XX: cpu_din = {1'b1, ~tape_in, 1'b1, key_data[4:0] & ({5{addr[12]}} | ~{joystick_1[1:0], joystick_1[2], joystick_1[3], joystick_1[4]})};
-		'b1X1XXXXXXX: cpu_din = 8'hFF;
+	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel | fdd_sel2 | plus3_fdd, mf3_port, mmc_sel, addr[5:0]==8'h1F, portBF, addr[0], psg_enable, ulap_sel})
+		'b00XXXXXXXXX: cpu_din = ram_dout;
+		'b01XXXXXXXXX: cpu_din = tape_dout;
+		'b1X01XXXXXXX: cpu_din = fdd_dout;
+		'b1X001XXXXXX: cpu_din = (addr[14:13] == 2'b11 ? page_reg : page_reg_plus3);
+		'b1X0001XXXXX: cpu_din = mmc_dout;
+		'b1X00001XXXX: cpu_din = mouse_sel ? mouse_data : {2'b00, joystick_0[5:0]};
+		'b1X000001XXX: cpu_din = {page_scr_copy, 7'b1111111};
+		'b1X00000011X: cpu_din = (addr[14] ? sound_data : 8'hFF);
+		'b1X000000101: cpu_din = ulap_dout;
+		'b1X000000100: cpu_din = port_ff;
+		'b1X0000000XX: cpu_din = {1'b1, ~tape_in, 1'b1, key_data[4:0] & ({5{addr[12]}} | ~{joystick_1[1:0], joystick_1[2], joystick_1[3], joystick_1[4]})};
+		'b1X1XXXXXXXX: cpu_din = 8'hFF;
 	endcase
 end
 
@@ -600,6 +611,41 @@ always @(posedge clk_sys) begin
 	if(~old_m1 & m1 & mod[0] & (addr == 'h66)) {mf128_mem, mf128_en} <= 2'b11;
 end
 
+//////////////////   MMC   //////////////////
+wire        mmc_sel;
+wire  [7:0] mmc_dout;
+
+wire        spi_ss;
+wire        spi_clk;
+wire        spi_di;
+wire        spi_do;
+
+divmmc divmmc
+(
+    .*,
+    .enable(1),
+    .mode(status[18:17]), //00-off, 01-divmmc, 10-zxmmc
+    .din(cpu_dout),
+    .dout(mmc_dout),
+    .active_io(mmc_sel)
+);
+
+sd_card sd_card
+(
+    .*,
+    .img_mounted(img_mounted[0]), //first slot for SD-card emulation
+    .sd_busy(sd_busy_mmc),
+    .sd_rd(sd_rd_mmc),
+    .sd_wr(sd_wr_mmc),
+    .sd_lba(sd_lba_mmc),
+    .sd_buff_din(sd_buff_din_mmc),
+    .allow_sdhc(1),
+    .sd_cs(spi_ss),
+    .sd_sck(spi_clk),
+    .sd_sdi(spi_do),
+    .sd_sdo(spi_di)
+);
+
 ///////////////////   FDC   ///////////////////
 reg         plusd_en;
 reg         plusd_mem;
@@ -647,8 +693,8 @@ always @(posedge clk_sys) begin
 	if(cold_reset) {plus3_fdd_ready, fdd_ready, plusd_en} <= 0;
 	if(reset)      {plusd_mem, trdos_en} <= 0;
 
-	old_mounted <= img_mounted;
-	if(~old_mounted & img_mounted) begin
+	old_mounted <= img_mounted[1];
+	if(~old_mounted & img_mounted[1]) begin
 	   //Only TRDs on +3
 		fdd_ready <= (!ioctl_index[7:6] & plus3) | ~plus3;
 		plusd_en  <= |ioctl_index[7:6] & ~plus3;
@@ -678,7 +724,7 @@ always @(posedge clk_sys) begin
 	end
 end
 
-wd1793 #(1) fdd
+wd1793 #(1,0) fdd
 (
 	.clk_sys(clk_sys),
 	.ce(ce_wd1793),
@@ -692,7 +738,7 @@ wd1793 #(1) fdd
 	.drq(fdd_drq),
 	.intrq(fdd_intrq),
 
-	.img_mounted(img_mounted),
+	.img_mounted(img_mounted[1]),
 	.img_size(img_size),
 	.sd_lba(sd_lba_wd),
 	.sd_rd(sd_rd_wd),
@@ -717,7 +763,6 @@ wd1793 #(1) fdd
 	.buff_din(0)
 );
 
-
 u765 #(20'd1800,1) u765
 (
 	.clk_sys(clk_sys),
@@ -727,12 +772,13 @@ u765 #(20'd1800,1) u765
 	.ready(plus3_fdd_ready),
 	.motor(motor_plus3),
 	.available(2'b01),
+	.fast(1),
 	.nRD(~plus3_fdd | nIORQ | ~nM1 | nRD),
 	.nWR(~plus3_fdd | nIORQ | ~nM1 | nWR),
 	.din(cpu_dout),
 	.dout(u765_dout),
 
-	.img_mounted(img_mounted),
+	.img_mounted(img_mounted[1]),
 	.img_size(img_size),
 	.img_wp(0),
 	.sd_lba(sd_lba_plus3),

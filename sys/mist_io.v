@@ -62,13 +62,13 @@ module mist_io #(parameter STRLEN=0, parameter PS2DIV=100)
 	// SD config
 	input             sd_conf,
 	input             sd_sdhc,
-	output            img_mounted, // signaling that new image has been mounted
+	output      [1:0] img_mounted, // signaling that new image has been mounted
 	output reg [31:0] img_size,    // size of image in bytes
 
 	// SD block level access
 	input      [31:0] sd_lba,
-	input             sd_rd,
-	input             sd_wr,
+	input       [1:0] sd_rd,
+	input       [1:0] sd_wr,
 	output reg        sd_ack,
 	output reg        sd_ack_conf,
 
@@ -104,7 +104,7 @@ module mist_io #(parameter STRLEN=0, parameter PS2DIV=100)
 reg [7:0] but_sw;
 reg [2:0] stick_idx;
 
-reg    mount_strobe = 0;
+reg [1:0] mount_strobe = 0;
 assign img_mounted  = mount_strobe;
 
 assign buttons = but_sw[1:0];
@@ -116,7 +116,8 @@ assign ypbpr = but_sw[5];
 wire [7:0] core_type = 8'ha4;
 
 // command byte read by the io controller
-wire [7:0] sd_cmd = { 4'h5, sd_conf, sd_sdhc, sd_wr, sd_rd };
+wire       drive_sel = sd_rd[1] | sd_wr[1];
+wire [7:0] sd_cmd = { 4'h6, sd_conf, sd_sdhc, sd_wr[drive_sel], sd_rd[drive_sel] };
 
 reg [7:0] cmd;
 reg [2:0] bit_cnt;    // counts bits 0-7 0-7 ...
@@ -137,6 +138,7 @@ reg       spi_data_ready = 0;
 always@(posedge SPI_SCK or posedge CONF_DATA0) begin
 	reg [6:0]  sbuf;
 	reg [31:0] sd_lba_r;
+	reg        drive_sel_r;
 
 	if(CONF_DATA0) begin
 	   bit_cnt <= 0;
@@ -165,8 +167,10 @@ always@(posedge SPI_SCK or posedge CONF_DATA0) begin
 				8'h16: if(byte_cnt == 0) begin
 							spi_data_out <= sd_cmd;
 							sd_lba_r <= sd_lba;
-						 end
-						 else if(byte_cnt < 5) spi_data_out <= sd_lba_r[(4-byte_cnt)<<3 +:8];
+							drive_sel_r <= drive_sel;
+						end else if (byte_cnt == 1) begin
+							spi_data_out <= drive_sel_r;
+						end else if(byte_cnt < 6) spi_data_out <= sd_lba_r[(5-byte_cnt)<<3 +:8];
 
 				// reading sd card write data
 				8'h18: spi_data_out <= sd_buff_din;
@@ -280,7 +284,7 @@ always@(posedge clk_sys) begin
 					end
 
 				// notify image selection
-				8'h1c: mount_strobe <= 1;
+				8'h1c: mount_strobe[spi_data_in[0]] <= 1;
 
 				// send image info
 				8'h1d: if(byte_cnt<6) img_size[(byte_cnt-2)<<3 +:8] <= spi_data_in;
