@@ -106,6 +106,7 @@ package T80_Pack is
 		TS              : out std_logic_vector(2 downto 0);
 		IntCycle_n      : out std_logic;
 		IntE            : out std_logic;
+		out0            : in  std_logic := '0';  -- 0 => OUT(C),0, 1 => OUT(C),255
 		Stop            : out std_logic;
 		REG             : out std_logic_vector(207 downto 0) -- IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
 	);
