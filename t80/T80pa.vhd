@@ -63,26 +63,27 @@ entity T80pa is
 		Mode : integer := 0	-- 0 => Z80, 1 => Fast Z80, 2 => 8080, 3 => GB
 	);
 	port(
-		RESET_n		: in  std_logic;
-		CLK			: in  std_logic;
-		CEN_p       : in  std_logic;
-		CEN_n       : in  std_logic;
-		WAIT_n		: in  std_logic;
-		INT_n			: in  std_logic;
-		NMI_n			: in  std_logic;
-		BUSRQ_n		: in  std_logic;
-		M1_n			: out std_logic;
-		MREQ_n		: out std_logic;
-		IORQ_n		: out std_logic;
-		RD_n			: out std_logic;
-		WR_n			: out std_logic;
-		RFSH_n		: out std_logic;
-		HALT_n		: out std_logic;
-		BUSAK_n		: out std_logic;
-		A				: out std_logic_vector(15 downto 0);
-		DI				: in  std_logic_vector(7 downto 0);
-		DO				: out std_logic_vector(7 downto 0);
-		REG			: out std_logic_vector(207 downto 0) -- IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
+		RESET_n     : in  std_logic;
+		CLK	        : in  std_logic;
+		CEN_p       : in  std_logic := '1';
+		CEN_n       : in  std_logic := '1';
+		WAIT_n      : in  std_logic := '1';
+		INT_n       : in  std_logic := '1';
+		NMI_n       : in  std_logic := '1';
+		BUSRQ_n     : in  std_logic := '1';
+		M1_n        : out std_logic;
+		MREQ_n      : out std_logic;
+		IORQ_n      : out std_logic;
+		RD_n        : out std_logic;
+		WR_n        : out std_logic;
+		RFSH_n      : out std_logic;
+		HALT_n      : out std_logic;
+		BUSAK_n     : out std_logic;
+		OUT0        : in  std_logic := '0';  -- 0 => OUT(C),0, 1 => OUT(C),255
+		A           : out std_logic_vector(15 downto 0);
+		DI          : in  std_logic_vector(7 downto 0);
+		DO          : out std_logic_vector(7 downto 0);
+		REG         : out std_logic_vector(207 downto 0) -- IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
 	);
 end T80pa;
 
@@ -134,6 +135,7 @@ begin
 			REG     => REG,
 			MC      => MCycle,
 			TS      => TState,
+			OUT0    => OUT0,
 			IntCycle_n => IntCycle_n
 		);
 
@@ -168,6 +170,9 @@ begin
 				else
 					CEN_pol <= '0';
 				end if;
+				if TState = "011" and BUSAK = '1' then
+					DI_Reg <= DI;
+				end if;
 				if MCycle = "001" then
 					if TState = "001" then
 						IntCycleD_n <= IntCycleD_n(0) & IntCycle_n;
@@ -185,9 +190,6 @@ begin
 						MREQ_n <= '1';
 					end if;
 				else
-					if TState = "011" and BUSAK = '1' then
-						DI_Reg <= DI;
-					end if;
 					if NoRead = '0' and IORQ = '0' then
 						if TState = "001" then
 							RD_n   <= Write;
