@@ -46,66 +46,63 @@ set_output_delay -clock [get_clocks {pll|altpll_component|auto_generated|pll1|cl
 set_output_delay -clock [get_clocks {pll|altpll_component|auto_generated|pll1|clk[0]}] -max 0 [get_ports {VGA_*}]
 set_output_delay -clock [get_clocks {pll|altpll_component|auto_generated|pll1|clk[0]}] -min -5 [get_ports {VGA_*}]
 set_multicycle_path -to [get_ports {VGA_*}] -setup 5
-set_multicycle_path -to [get_ports {VGA_*}] -hold 5
+set_multicycle_path -to [get_ports {VGA_*}] -hold 4
 
 set_multicycle_path -from {video:video|video_mixer:video_mixer|scandoubler:scandoubler|Hq2x:Hq2x|*} -setup 6
-set_multicycle_path -from {video:video|video_mixer:video_mixer|scandoubler:scandoubler|Hq2x:Hq2x|*} -hold 6
+set_multicycle_path -from {video:video|video_mixer:video_mixer|scandoubler:scandoubler|Hq2x:Hq2x|*} -hold 5
 
 # Effective clock is only half of the system clock, so allow 2 clock cycles for the paths in the T80 cpu
 set_multicycle_path -from {T80pa:cpu|T80:u0|*} -setup 2
-set_multicycle_path -from {T80pa:cpu|T80:u0|*} -hold 2
+set_multicycle_path -from {T80pa:cpu|T80:u0|*} -hold 1
 
 # The CE is only active in every 2 clocks, so allow 2 clock cycles
 set_multicycle_path -to {smart_tape:tape|tape:tape|addr[*]} -setup 2
-set_multicycle_path -to {smart_tape:tape|tape:tape|addr[*]} -hold 2
+set_multicycle_path -to {smart_tape:tape|tape:tape|addr[*]} -hold 1
 set_multicycle_path -to {smart_tape:tape|tape:tape|read_cnt[*]} -setup 2
-set_multicycle_path -to {smart_tape:tape|tape:tape|read_cnt[*]} -hold 2
+set_multicycle_path -to {smart_tape:tape|tape:tape|read_cnt[*]} -hold 1
 set_multicycle_path -to {smart_tape:tape|tape:tape|blocksz[*]} -setup 2
-set_multicycle_path -to {smart_tape:tape|tape:tape|blocksz[*]} -hold 2
+set_multicycle_path -to {smart_tape:tape|tape:tape|blocksz[*]} -hold 1
 set_multicycle_path -to {smart_tape:tape|tape:tape|timeout[*]} -setup 2
-set_multicycle_path -to {smart_tape:tape|tape:tape|timeout[*]} -hold 2
+set_multicycle_path -to {smart_tape:tape|tape:tape|timeout[*]} -hold 1
 set_multicycle_path -to {smart_tape:tape|tape:tape|pilot[*]} -setup 2
-set_multicycle_path -to {smart_tape:tape|tape:tape|pilot[*]} -hold 2
+set_multicycle_path -to {smart_tape:tape|tape:tape|pilot[*]} -hold 1
 set_multicycle_path -to {smart_tape:tape|tape:tape|tick[*]} -setup 2
-set_multicycle_path -to {smart_tape:tape|tape:tape|tick[*]} -hold 2
+set_multicycle_path -to {smart_tape:tape|tape:tape|tick[*]} -hold 1
 set_multicycle_path -to {smart_tape:tape|tape:tape|blk_list[*]} -setup 2
-set_multicycle_path -to {smart_tape:tape|tape:tape|blk_list[*]} -hold 2
+set_multicycle_path -to {smart_tape:tape|tape:tape|blk_list[*]} -hold 1
 set_multicycle_path -to {smart_tape:tape|tape:tape|bitcnt[*]} -setup 2
-set_multicycle_path -to {smart_tape:tape|tape:tape|bitcnt[*]} -hold 2
+set_multicycle_path -to {smart_tape:tape|tape:tape|bitcnt[*]} -hold 1
 
 # The effective clock fo the AY chips are 112/1.75=64 cycles, so allow at least 2 cycles for the paths
 set_multicycle_path -to {turbosound:turbosound|ym2149:*} -setup 2
-set_multicycle_path -to {turbosound:turbosound|ym2149:*} -hold 2
+set_multicycle_path -to {turbosound:turbosound|ym2149:*} -hold 1
 
 set_multicycle_path -from {wd1793:fdd|wd1793_dpram:sbuf|*} -setup 2
-set_multicycle_path -from {wd1793:fdd|wd1793_dpram:sbuf|*} -hold 2
-
-set_multicycle_path -from {wd1793:fdd|altsyncram:edsk_rtl_0|*} -setup 2
-set_multicycle_path -from {wd1793:fdd|altsyncram:edsk_rtl_0|*} -hold 2
+set_multicycle_path -from {wd1793:fdd|wd1793_dpram:sbuf|*} -hold 1
 
 set_multicycle_path -to {wd1793:fdd|state[*]} -setup 2
-set_multicycle_path -to {wd1793:fdd|state[*]} -hold 2
+set_multicycle_path -to {wd1793:fdd|state[*]} -hold 1
 set_multicycle_path -to {wd1793:fdd|wait_time[*]} -setup 2
-set_multicycle_path -to {wd1793:fdd|wait_time[*]} -hold 2
+set_multicycle_path -to {wd1793:fdd|wait_time[*]} -hold 1
 
 set_multicycle_path -from {u765:u765|u765_dpram:sbuf|*} -setup 2
-set_multicycle_path -from {u765:u765|u765_dpram:sbuf|*} -hold 2
+set_multicycle_path -from {u765:u765|u765_dpram:sbuf|*} -hold 1
 set_multicycle_path -from {u765:u765|altsyncram:image_track_offsets_rtl_0|*} -setup 2
-set_multicycle_path -from {u765:u765|altsyncram:image_track_offsets_rtl_0|*} -hold 2
+set_multicycle_path -from {u765:u765|altsyncram:image_track_offsets_rtl_0|*} -hold 1
 set_multicycle_path -to {u765:u765|i_*} -setup 2
-set_multicycle_path -to {u765:u765|i_*} -hold 2
+set_multicycle_path -to {u765:u765|i_*} -hold 1
 set_multicycle_path -to {u765:u765|i_*[*]} -setup 2
-set_multicycle_path -to {u765:u765|i_*[*]} -hold 2
+set_multicycle_path -to {u765:u765|i_*[*]} -hold 1
 set_multicycle_path -to {u765:u765|pcn[*]} -setup 2
-set_multicycle_path -to {u765:u765|pcn[*]} -hold 2
+set_multicycle_path -to {u765:u765|pcn[*]} -hold 1
 set_multicycle_path -to {u765:u765|ncn[*]} -setup 2
-set_multicycle_path -to {u765:u765|ncn[*]} -hold 2
+set_multicycle_path -to {u765:u765|ncn[*]} -hold 1
 set_multicycle_path -to {u765:u765|state[*]} -setup 2
-set_multicycle_path -to {u765:u765|state[*]} -hold 2
+set_multicycle_path -to {u765:u765|state[*]} -hold 1
 set_multicycle_path -to {u765:u765|status[*]} -setup 2
-set_multicycle_path -to {u765:u765|status[*]} -hold 2
+set_multicycle_path -to {u765:u765|status[*]} -hold 1
 set_multicycle_path -to {u765:u765|i_rpm_time[*][*][*]} -setup 8
-set_multicycle_path -to {u765:u765|i_rpm_time[*][*][*]} -hold 8
+set_multicycle_path -to {u765:u765|i_rpm_time[*][*][*]} -hold 7
 
 # False paths
 
