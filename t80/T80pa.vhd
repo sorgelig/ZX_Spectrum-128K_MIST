@@ -56,7 +56,6 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use work.T80_Pack.all;
 
 entity T80pa is
 	generic(
@@ -83,7 +82,9 @@ entity T80pa is
 		A           : out std_logic_vector(15 downto 0);
 		DI          : in  std_logic_vector(7 downto 0);
 		DO          : out std_logic_vector(7 downto 0);
-		REG         : out std_logic_vector(207 downto 0) -- IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
+		REG         : out std_logic_vector(211 downto 0); -- IFF2, IFF1, IM, IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
+		DIRSet      : in  std_logic := '0';
+		DIR         : in  std_logic_vector(211 downto 0) := (others => '0') -- IFF2, IFF1, IM, IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
 	);
 end T80pa;
 
@@ -108,7 +109,7 @@ begin
 
 	BUSAK_n <= BUSAK;
 
-	u0 : T80
+	u0 : work.T80
 		generic map(
 			Mode    => Mode,
 			IOWait  => 1
@@ -136,7 +137,9 @@ begin
 			MC      => MCycle,
 			TS      => TState,
 			OUT0    => OUT0,
-			IntCycle_n => IntCycle_n
+			IntCycle_n => IntCycle_n,
+			DIRSet  => DIRSet,
+			DIR     => DIR
 		);
 
 	process(CLK)

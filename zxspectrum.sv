@@ -259,7 +259,7 @@ wire        io_wr = ~nIORQ & ~nWR & nM1;
 wire        io_rd = ~nIORQ & ~nRD & nM1;
 wire        m1    = ~nM1 & ~nMREQ;
 
-wire[207:0]	cpu_reg;  // IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
+wire[211:0]	cpu_reg;  // IFF2, IFF1, IM, IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
 wire [15:0] reg_DE  = cpu_reg[111:96];
 wire  [7:0] reg_A   = cpu_reg[7:0];
 
@@ -469,7 +469,7 @@ always @(posedge clk_sys) begin
 			if(page_write) begin
 				page_reg  <= cpu_dout;
 				if(p1024 & ~page_reg_p1024[2])	page_128k[2:0] <= { cpu_dout[5], cpu_dout[7:6] };
-				if(~plusd_mem) page_scr_copy <= page_reg[3];
+				if(~plusd_mem) page_scr_copy <= cpu_dout[3];
 			end else if (page_write_plus3) begin
 				page_reg_plus3 <= cpu_dout; 
 			end
