@@ -59,7 +59,7 @@ wire [7:0] pl = pix_len + 1'b1;
 reg ce_x1, ce_x4;
 reg req_line_reset;
 wire ls_in = hs_in | line_start;
-always @(negedge clk_sys) begin
+always @(posedge clk_sys) begin
 	reg old_ce;
 	reg [2:0] ce_cnt;
 
