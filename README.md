@@ -14,7 +14,7 @@ Some verilog models from Till Harbaum [Spectrum](https://github.com/mist-devel/m
 - +3 Disk drive usable with +3DOS.
 - Multiface 128 and Multiface 3 (in +3 mode) add-on.
 - Memory snapshot save/load in +D and Multiface.
-- Native TAP with turbo loading. Fast loading for TAP and CSW.
+- Native TAP with turbo loading. Fast loading for TAP, CSW and TZX.
 - Kempston Mouse and Joystick.
 - Sinclair Joystick I
 - Turbo-Sound interface (dual YM2149 sound chips)
@@ -54,6 +54,8 @@ In normal mode, while TAP loading, the following keys can be used:
 - F3 - skip to next part
 
 **CSW** is tape format, useful only for apps using non-standard loaders with non-standard transfer speeds. These files are are always loaded in normal mode. You can use **F1** key to pause/continue.
+
+**TZX** files contain exact copies of original tapes. This format is very complex, and not all features are supported. You can use **F1** key to pause/continue.
 
 OSD option **Fast tape load** increases CPU frequency to 56MHz while tape loading.
 

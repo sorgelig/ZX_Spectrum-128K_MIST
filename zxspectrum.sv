@@ -68,7 +68,7 @@ localparam CONF_PLUSD = "(+D) ";
 localparam CONF_STR = {
 	"SPECTRUM;;",
 	"S1,TRDIMGDSKMGT,Load Disk;",
-	"F,TAPCSW,Load Tape;",
+	"F,TAPCSWTZX,Load Tape;",
 	"O6,Fast tape load,On,Off;",
 	"O7,Joystick swap,Off,On;",
 	"O89,Video timings,ULA-48,ULA-128,Pentagon;",
@@ -837,7 +837,7 @@ smart_tape tape
 
 	.ioctl_download(ioctl_download & (ioctl_index[4:0] == 2)),
 	.tape_size(ioctl_addr - 25'h400000 + 1'b1),
-	.tape_mode(!ioctl_index[7:6]),
+	.tape_mode(ioctl_index[7:6]),
 
 	.m1(~nM1 & ~nMREQ),
 	.rom_en(active_48_rom),
