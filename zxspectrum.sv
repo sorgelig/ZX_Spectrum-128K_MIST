@@ -253,11 +253,6 @@ wire        nRFSH;
 wire        nBUSACK;
 wire        nINT;
 wire        nBUSRQ = ~ioctl_download;
-wire        reset  = buttons[1] | status[0] | cold_reset | warm_reset | shdw_reset | Fn[10];
-
-wire        cold_reset = cold_reset_btn | init_reset;
-wire        warm_reset = warm_reset_btn;
-wire        shdw_reset = shdw_reset_btn & ~plus3;
 
 wire        io_wr = ~nIORQ & ~nWR & nM1;
 wire        io_rd = ~nIORQ & ~nRD & nM1;
@@ -308,22 +303,28 @@ always_comb begin
 	endcase
 end
 
-(* maxfan = 5 *) reg init_reset = 1;
+reg init_reset = 1;
 always @(posedge clk_sys) begin
 	reg old_download;
 	old_download <= ioctl_download;
 	if(old_download & ~ioctl_download) init_reset <= 0;
 end
 
-reg NMI;
-reg cold_reset_btn;
-reg warm_reset_btn;
-reg shdw_reset_btn;
+reg  NMI;
+reg  reset;
+reg  cold_reset_btn;
+reg  warm_reset_btn;
+reg  shdw_reset_btn;
+wire cold_reset = cold_reset_btn | init_reset;
+wire warm_reset = warm_reset_btn;
+wire shdw_reset = shdw_reset_btn & ~plus3;
 
 always @(posedge clk_sys) begin
 	reg old_F11;
 
 	old_F11 <= Fn[11];
+
+	reset <= buttons[1] | status[0] | cold_reset | warm_reset | shdw_reset | Fn[10];
 
 	if(reset | ~Fn[11] | (m1 & (addr == 'h66))) NMI <= 0;
 	else if(~old_F11 & Fn[11] & (mod[2:1] == 0)) NMI <= 1;
