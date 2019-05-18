@@ -337,7 +337,8 @@ end
 
 //////////////////   MEMORY   //////////////////
 wire        dma = (reset | ~nBUSACK) & ~nBUSRQ;
-reg  [24:0] ram_addr;
+reg  [24:0] sdram_addr;
+reg  [20:0] ram_addr;
 reg   [7:0] ram_din;
 reg         ram_we;
 reg         ram_rd;
@@ -345,18 +346,22 @@ wire  [7:0] ram_dout;
 wire        ram_ready;
 
 always_comb begin
-	casex({dma, tape_req, page_special, addr[15:14]})
-		'b1X_X_XX: ram_addr = ioctl_addr;
-		'b01_X_XX: ram_addr = tape_addr;
-		'b00_0_00: ram_addr = { 3'b101, page_rom,    addr[13:0]}; //ROM
-		'b00_0_01: ram_addr = {        3'd5,         addr[13:0]}; //Non-special page modes
-		'b00_0_10: ram_addr = {        3'd2,         addr[13:0]};
-		'b00_0_11: ram_addr = {    page_ram,         addr[13:0]};
-		'b00_1_00: ram_addr = { |page_reg_plus3[2:1],                      2'b00, addr[13:0]}; //Special page modes
-		'b00_1_01: ram_addr = { |page_reg_plus3[2:1], &page_reg_plus3[2:1], 1'b1, addr[13:0]};
-		'b00_1_10: ram_addr = { |page_reg_plus3[2:1],                      2'b10, addr[13:0]};
-		'b00_1_11: ram_addr = { ~page_reg_plus3[2] & page_reg_plus3[1],    2'b11, addr[13:0]};
+	casex({page_special, addr[15:14]})
+		'b0_00: ram_addr = { 3'b101, page_rom,    addr[13:0]}; //ROM
+		'b0_01: ram_addr = {        3'd5,         addr[13:0]}; //Non-special page modes
+		'b0_10: ram_addr = {        3'd2,         addr[13:0]};
+		'b0_11: ram_addr = {    page_ram,         addr[13:0]};
+		'b1_00: ram_addr = { |page_reg_plus3[2:1],                      2'b00, addr[13:0]}; //Special page modes
+		'b1_01: ram_addr = { |page_reg_plus3[2:1], &page_reg_plus3[2:1], 1'b1, addr[13:0]};
+		'b1_10: ram_addr = { |page_reg_plus3[2:1],                      2'b10, addr[13:0]};
+		'b1_11: ram_addr = { ~page_reg_plus3[2] & page_reg_plus3[1],    2'b11, addr[13:0]};
 	endcase
+
+	casex({dma, tape_req})
+		'b1X: sdram_addr = ioctl_addr;
+		'b01: sdram_addr = tape_addr;
+		'b00: sdram_addr = ram_addr;
+	endcase;
 
 	casex({dma, tape_req})
 		'b1X: ram_din = ioctl_dout;
@@ -384,21 +389,21 @@ sdram ram
 	.clk(clk_sys),
 	.dout(ram_dout),
 	.din (ram_din),
-	.addr(ram_addr),
+	.addr(sdram_addr),
 	.wtbt(0),
 	.we(ram_we),
 	.rd(ram_rd),
 	.ready(ram_ready)
 );
 
-wire vram_we = (ram_addr[24:16] == 1) & ram_addr[14];
+wire vram_sel = (ram_addr[20:16] == 1) & ram_addr[14] & ~dma & ~tape_req;
 vram vram
 (
     .clock(clk_sys),
 
     .wraddress({ram_addr[15], ram_addr[13:0]}),
     .data(ram_din),
-    .wren(ram_we & vram_we),
+    .wren(ram_we & vram_sel),
 
     .rdaddress(vram_addr),
     .q(vram_dout)
