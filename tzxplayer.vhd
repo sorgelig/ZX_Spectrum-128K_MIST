@@ -256,8 +256,12 @@ begin
 				tzx_offset <= tzx_offset + 1;
 				if    tzx_offset = x"00" then data_len( 7 downto  0) <= tap_fifo_do;
 				elsif tzx_offset = x"01" then data_len(15 downto  8) <= tap_fifo_do;
-				elsif tzx_offset = data_len - 1 then
+				else
+					tzx_offset <= x"02";
+					data_len <= data_len - 1;
+					if data_len = 1 then
 						tzx_state <= TZX_NEWBLOCK;
+					end if;
 				end if;
 
 			when TZX_TONE =>
