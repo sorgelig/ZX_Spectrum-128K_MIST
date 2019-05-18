@@ -100,21 +100,20 @@ reg  ce_28m;
 
 reg  pause;
 reg  cpu_en = 1;
-wire cpu_tp;
 reg  ce_cpu_tp;
 reg  ce_cpu_tn;
 
 wire ce_cpu_p = cpu_en & cpu_p;
 wire ce_cpu_n = cpu_en & cpu_n;
-//duplicate ce_cpu_tp to achieve better fit, higher FMax
-reg  ce_wd1793;
-reg  ce_u765;
-reg  ce_tape;
+wire ce_cpu   = cpu_en & ce_cpu_tp;
+wire ce_wd1793 = ce_cpu;
+wire ce_u765 = ce_cpu;
+wire ce_tape = ce_cpu;
 
 wire cpu_p = ~&turbo ? ce_cpu_tp : ce_cpu_sp;
 wire cpu_n = ~&turbo ? ce_cpu_tn : ce_cpu_sn;
 
-always @(negedge clk_sys) begin
+always @(posedge clk_sys) begin
 	reg [5:0] counter = 0;
 
 	counter <=  counter + 1'd1;
@@ -124,12 +123,7 @@ always @(negedge clk_sys) begin
 	ce_7mn  <=  counter[3] & !counter[2:0];
 	ce_psg  <= !counter[5:0] & ~pause;
 
-	cpu_tp    = !(counter & turbo);
-	ce_cpu_tp <= cpu_tp;
-	ce_wd1793 <= cpu_tp;
-	ce_u765   <= cpu_tp;
-	ce_tape   <= cpu_tp;
-
+	ce_cpu_tp <= !(counter & turbo);
 	ce_cpu_tn <= !((counter & turbo) ^ turbo ^ turbo[4:1]);
 end
 
