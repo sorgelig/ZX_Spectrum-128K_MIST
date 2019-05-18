@@ -44,7 +44,7 @@ module tape
 	output reg    available,
 
 	input         tape_ready,
-	input         tape_mode,
+	input   [1:0] tape_mode, //0 - TAP, 1 - CSW, 2 - TZX
 	input  [24:0] tape_size,
 	input         stdload,
 	input         req_hdr,
@@ -59,6 +59,19 @@ module tape
 
 localparam  CLOCK = 32'd3500000;
 
+tzxplayer #(.TZX_MS(CLOCK/1000)) tzxplayer
+(
+	.clk(clk_sys),
+	.ce(ce),
+	.restart_tape(~tape_ready || tape_mode != 2'b10),
+	.host_tap_in(din_r),
+	.host_tap_wrreq(tape_wrreq),
+	.tap_fifo_wrfull(tape_wrfull),
+	.tap_fifo_error(tape_finish),
+	.cass_read(tzx_audio),
+	.cass_motor(!play_pause && tape_mode == 2'b10)
+);
+
 assign rd   = rd_req & rd_en;
 assign dout = data;
 
@@ -67,12 +80,17 @@ reg         read_done;
 reg   [7:0] data;
 reg         rd_req;
 reg  [24:0] size;
+reg         play_pause;
+reg  [7:0]  din_r;
+reg         tape_wrreq;
+reg         tape_wrfull;
+wire        tzx_audio;
+wire        tape_finish;
 
 always @(posedge clk_sys) begin
 	reg old_pause, old_prev, old_next, old_ready, old_rden;
 
 	reg [24:0] blk_list[32];
-	reg        play_pause;
 	reg [15:0] blocksz;
 	reg  [5:0] hdrsz;
 	reg [15:0] pilot;
@@ -84,7 +102,6 @@ always @(posedge clk_sys) begin
 	reg  [2:0] reload32;
 	reg [31:0] clk_play_cnt;
 	reg        blk_type;
-	reg  [7:0] din_r;
 	reg        skip;
 	reg        turboskip;
 	reg        auto_blk;
@@ -107,8 +124,8 @@ always @(posedge clk_sys) begin
 		end
 	end
 
-	active <= !play_pause && read_cnt;
-	available <= (read_cnt != 0);
+	active <= !play_pause && ((tape_mode == 2'b10 && !tape_finish) || read_cnt);
+	available <= (tape_mode == 2'b10 && !tape_finish) || read_cnt;
 
 	old_ready <= tape_ready;
 	if(tape_ready & ~old_ready) begin
@@ -116,9 +133,23 @@ always @(posedge clk_sys) begin
 		addr <= 0;
 		size <= tape_size;
 		blk_list[0] <= tape_size;
-		if(!tape_mode && tape_size) begin
+		if((tape_mode == 2'b01) && tape_size) begin
+			// CSW
 			hdrsz <= 32;
 			read_done <= 0;
+		end
+	end
+
+	tape_wrreq <= 0;
+	// Fill TZX FIFO
+	if (tape_ready && tape_mode == 2'b10) begin
+		audio_out <= tzx_audio;
+
+		if(read_done && !tape_wrfull && read_cnt) begin
+			tape_wrreq <= 1;
+			read_done <= 0;
+			read_cnt  <= read_cnt - 1'd1;
+			addr <= addr + 1'b1;
 		end
 	end
 
@@ -150,10 +181,8 @@ always @(posedge clk_sys) begin
 			auto_blk <= ~play_pause;
 		end
 
-		if(tape_mode) begin
-
-			// TAP file
-
+		case (tape_mode)
+		2'b00: begin // TAP file
 			if(hdrsz && read_done) begin
 				read_done <= 0;
 				if(hdrsz == 2) blocksz[7:0] <= din_r;
@@ -307,10 +336,9 @@ always @(posedge clk_sys) begin
 				skip <= 1;
 				tick <= 0;
 			end
+		end
 
-		end else begin
-
-			// CSW file
+		2'b01: begin // CSW file
 
 			if(old_stdload & ~stdload) play_pause <= 1;
 
@@ -350,6 +378,10 @@ always @(posedge clk_sys) begin
 				end
 			end
 		end
+
+		default: ;
+
+		endcase
 	end
 end
 
@@ -378,7 +410,7 @@ module smart_tape
 	input   [7:0] buff_din,
 
 	input         ioctl_download,
-	input         tape_mode,
+	input   [1:0] tape_mode, // 0 - TAP, 1 - CSW, 2 - TZX
 	input  [24:0] tape_size,
 	input         req_hdr,
 
@@ -400,6 +432,7 @@ always @(posedge clk_sys) if(active || ~(available ^ act_cnt[24]) || act_cnt[23:
 
 reg  [7:0] tape_stub[14] = '{'h18, 'hFE, 'h2E, 'hFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 wire [7:0] tape_dout;
+reg  [1:0] tape_mode_reg;
 
 wire byte_ready;
 reg  byte_wait;
@@ -410,6 +443,7 @@ reg  tape_ready;
 tape tape
 (
 	.*,
+	.tape_mode(tape_mode_reg),
 	.req_hdr(stdhdr),
 
 	.addr(buff_addr),
@@ -446,7 +480,7 @@ always @(posedge clk_sys) begin
 	end
 
 	if(reset | (prev & next) | ioctl_download) {tape_ready, allow_turbo} <= 0;
-	if(old_download & ~ioctl_download)         {tape_ready, allow_turbo} <= {1'b1, ~stdload & tape_mode};
+	if(old_download & ~ioctl_download)         {tape_ready, allow_turbo, tape_mode_reg} <= {1'b1, ~stdload & !tape_mode, tape_mode};
 end
 
 endmodule

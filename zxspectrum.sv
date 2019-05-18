@@ -68,8 +68,9 @@ localparam CONF_PLUSD = "(+D) ";
 localparam CONF_STR = {
 	"SPECTRUM;;",
 	"S1,TRDIMGDSKMGT,Load Disk;",
-	"F,TAPCSW,Load Tape;",
+	"F,TAPCSWTZX,Load Tape;",
 	"O6,Fast tape load,On,Off;",
+	"O7,Joystick swap,Off,On;",
 	"O89,Video timings,ULA-48,ULA-128,Pentagon;",
 	"OFG,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OAC,Memory,Standard 128K,Pentagon 1024K,Profi 1024K,Standard 48K,+2A/+3;",
@@ -99,21 +100,20 @@ reg  ce_28m;
 
 reg  pause;
 reg  cpu_en = 1;
-wire cpu_tp;
 reg  ce_cpu_tp;
 reg  ce_cpu_tn;
 
 wire ce_cpu_p = cpu_en & cpu_p;
 wire ce_cpu_n = cpu_en & cpu_n;
-//duplicate ce_cpu_tp to achieve better fit, higher FMax
-reg  ce_wd1793;
-reg  ce_u765;
-reg  ce_tape;
+wire ce_cpu   = cpu_en & ce_cpu_tp;
+wire ce_wd1793 = ce_cpu;
+wire ce_u765 = ce_cpu;
+wire ce_tape = ce_cpu;
 
 wire cpu_p = ~&turbo ? ce_cpu_tp : ce_cpu_sp;
 wire cpu_n = ~&turbo ? ce_cpu_tn : ce_cpu_sn;
 
-always @(negedge clk_sys) begin
+always @(posedge clk_sys) begin
 	reg [5:0] counter = 0;
 
 	counter <=  counter + 1'd1;
@@ -123,12 +123,7 @@ always @(negedge clk_sys) begin
 	ce_7mn  <=  counter[3] & !counter[2:0];
 	ce_psg  <= !counter[5:0] & ~pause;
 
-	cpu_tp    = !(counter & turbo);
-	ce_cpu_tp <= cpu_tp;
-	ce_wd1793 <= cpu_tp;
-	ce_u765   <= cpu_tp;
-	ce_tape   <= cpu_tp;
-
+	ce_cpu_tp <= !(counter & turbo);
 	ce_cpu_tn <= !((counter & turbo) ^ turbo ^ turbo[4:1]);
 end
 
@@ -176,6 +171,9 @@ wire [24:0] ps2_mouse;
 
 wire  [7:0] joystick_0;
 wire  [7:0] joystick_1;
+wire  [7:0] joy0 = status[7] ? joystick_1 : joystick_0; // Kempston
+wire  [7:0] joy1 = status[7] ? joystick_0 : joystick_1; // Sinclair
+
 wire  [1:0] buttons;
 wire  [1:0] switches;
 wire        scandoubler_disable;
@@ -249,11 +247,6 @@ wire        nRFSH;
 wire        nBUSACK;
 wire        nINT;
 wire        nBUSRQ = ~ioctl_download;
-wire        reset  = buttons[1] | status[0] | cold_reset | warm_reset | shdw_reset | Fn[10];
-
-wire        cold_reset = cold_reset_btn | init_reset;
-wire        warm_reset = warm_reset_btn;
-wire        shdw_reset = shdw_reset_btn & ~plus3;
 
 wire        io_wr = ~nIORQ & ~nWR & nM1;
 wire        io_rd = ~nIORQ & ~nRD & nM1;
@@ -294,32 +287,38 @@ always_comb begin
 		'b1X01XXXXXXX: cpu_din = fdd_dout;
 		'b1X001XXXXXX: cpu_din = (addr[14:13] == 2'b11 ? page_reg : page_reg_plus3);
 		'b1X0001XXXXX: cpu_din = mmc_dout;
-		'b1X00001XXXX: cpu_din = mouse_sel ? mouse_data : {2'b00, joystick_0[5:0]};
+		'b1X00001XXXX: cpu_din = mouse_sel ? mouse_data : {2'b00, joy0[5:0]};
 		'b1X000001XXX: cpu_din = {page_scr_copy, 7'b1111111};
 		'b1X00000011X: cpu_din = (addr[14] ? sound_data : 8'hFF);
 		'b1X000000101: cpu_din = ulap_dout;
 		'b1X000000100: cpu_din = port_ff;
-		'b1X0000000XX: cpu_din = {1'b1, ~tape_in, 1'b1, key_data[4:0] & ({5{addr[12]}} | ~{joystick_1[1:0], joystick_1[2], joystick_1[3], joystick_1[4]})};
+		'b1X0000000XX: cpu_din = {1'b1, ~tape_in, 1'b1, key_data[4:0] & ({5{addr[12]}} | ~{joy1[1:0], joy1[2], joy1[3], joy1[4]})};
 		'b1X1XXXXXXXX: cpu_din = 8'hFF;
 	endcase
 end
 
-(* maxfan = 5 *) reg init_reset = 1;
+reg init_reset = 1;
 always @(posedge clk_sys) begin
 	reg old_download;
 	old_download <= ioctl_download;
 	if(old_download & ~ioctl_download) init_reset <= 0;
 end
 
-reg NMI;
-reg cold_reset_btn;
-reg warm_reset_btn;
-reg shdw_reset_btn;
+reg  NMI;
+reg  reset;
+reg  cold_reset_btn;
+reg  warm_reset_btn;
+reg  shdw_reset_btn;
+wire cold_reset = cold_reset_btn | init_reset;
+wire warm_reset = warm_reset_btn;
+wire shdw_reset = shdw_reset_btn & ~plus3;
 
 always @(posedge clk_sys) begin
 	reg old_F11;
 
 	old_F11 <= Fn[11];
+
+	reset <= buttons[1] | status[0] | cold_reset | warm_reset | shdw_reset | Fn[10];
 
 	if(reset | ~Fn[11] | (m1 & (addr == 'h66))) NMI <= 0;
 	else if(~old_F11 & Fn[11] & (mod[2:1] == 0)) NMI <= 1;
@@ -332,7 +331,8 @@ end
 
 //////////////////   MEMORY   //////////////////
 wire        dma = (reset | ~nBUSACK) & ~nBUSRQ;
-reg  [24:0] ram_addr;
+reg  [24:0] sdram_addr;
+reg  [20:0] ram_addr;
 reg   [7:0] ram_din;
 reg         ram_we;
 reg         ram_rd;
@@ -340,18 +340,22 @@ wire  [7:0] ram_dout;
 wire        ram_ready;
 
 always_comb begin
-	casex({dma, tape_req, page_special, addr[15:14]})
-		'b1X_X_XX: ram_addr = ioctl_addr;
-		'b01_X_XX: ram_addr = tape_addr;
-		'b00_0_00: ram_addr = { 3'b101, page_rom,    addr[13:0]}; //ROM
-		'b00_0_01: ram_addr = {        3'd5,         addr[13:0]}; //Non-special page modes
-		'b00_0_10: ram_addr = {        3'd2,         addr[13:0]};
-		'b00_0_11: ram_addr = {    page_ram,         addr[13:0]};
-		'b00_1_00: ram_addr = { |page_reg_plus3[2:1],                      2'b00, addr[13:0]}; //Special page modes
-		'b00_1_01: ram_addr = { |page_reg_plus3[2:1], &page_reg_plus3[2:1], 1'b1, addr[13:0]};
-		'b00_1_10: ram_addr = { |page_reg_plus3[2:1],                      2'b10, addr[13:0]};
-		'b00_1_11: ram_addr = { ~page_reg_plus3[2] & page_reg_plus3[1],    2'b11, addr[13:0]};
+	casex({page_special, addr[15:14]})
+		'b0_00: ram_addr = { 3'b101, page_rom,    addr[13:0]}; //ROM
+		'b0_01: ram_addr = {        3'd5,         addr[13:0]}; //Non-special page modes
+		'b0_10: ram_addr = {        3'd2,         addr[13:0]};
+		'b0_11: ram_addr = {    page_ram,         addr[13:0]};
+		'b1_00: ram_addr = { |page_reg_plus3[2:1],                      2'b00, addr[13:0]}; //Special page modes
+		'b1_01: ram_addr = { |page_reg_plus3[2:1], &page_reg_plus3[2:1], 1'b1, addr[13:0]};
+		'b1_10: ram_addr = { |page_reg_plus3[2:1],                      2'b10, addr[13:0]};
+		'b1_11: ram_addr = { ~page_reg_plus3[2] & page_reg_plus3[1],    2'b11, addr[13:0]};
 	endcase
+
+	casex({dma, tape_req})
+		'b1X: sdram_addr = ioctl_addr;
+		'b01: sdram_addr = tape_addr;
+		'b00: sdram_addr = ram_addr;
+	endcase;
 
 	casex({dma, tape_req})
 		'b1X: ram_din = ioctl_dout;
@@ -379,21 +383,21 @@ sdram ram
 	.clk(clk_sys),
 	.dout(ram_dout),
 	.din (ram_din),
-	.addr(ram_addr),
+	.addr(sdram_addr),
 	.wtbt(0),
 	.we(ram_we),
 	.rd(ram_rd),
 	.ready(ram_ready)
 );
 
-wire vram_we = (ram_addr[24:16] == 1) & ram_addr[14];
+wire vram_sel = (ram_addr[20:16] == 1) & ram_addr[14] & ~dma & ~tape_req;
 vram vram
 (
     .clock(clk_sys),
 
     .wraddress({ram_addr[15], ram_addr[13:0]}),
     .data(ram_din),
-    .wren(ram_we & vram_we),
+    .wren(ram_we & vram_sel),
 
     .rdaddress(vram_addr),
     .q(vram_dout)
@@ -581,7 +585,7 @@ always @(posedge clk_sys) begin
 	reg old_status = 0;
 	old_status <= ps2_mouse[24];
 
-	if(joystick_0[5:0]) mouse_sel <= 0;
+	if(joy0[5:0]) mouse_sel <= 0;
 	if(old_status != ps2_mouse[24]) mouse_sel <= 1;
 end
 
@@ -827,7 +831,7 @@ smart_tape tape
 
 	.ioctl_download(ioctl_download & (ioctl_index[4:0] == 2)),
 	.tape_size(ioctl_addr - 25'h400000 + 1'b1),
-	.tape_mode(!ioctl_index[7:6]),
+	.tape_mode(ioctl_index[7:6]),
 
 	.m1(~nM1 & ~nMREQ),
 	.rom_en(active_48_rom),
@@ -852,7 +856,7 @@ always @(posedge clk_sys) begin
 end
 
 assign UART_TX = 1;
-assign tape_in = tape_loaded_reg ? tape_vin : ~UART_RX | ~(ear_out | mic_out);
+assign tape_in = tape_loaded_reg ? tape_vin : ~UART_RX;
 
 
 endmodule
