@@ -70,6 +70,7 @@ localparam CONF_STR = {
 	"S1,TRDIMGDSKMGT,Load Disk;",
 	"F,TAPCSW,Load Tape;",
 	"O6,Fast tape load,On,Off;",
+	"O7,Joystick swap,Off,On;",
 	"O89,Video timings,ULA-48,ULA-128,Pentagon;",
 	"OFG,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OAC,Memory,Standard 128K,Pentagon 1024K,Profi 1024K,Standard 48K,+2A/+3;",
@@ -176,6 +177,9 @@ wire [24:0] ps2_mouse;
 
 wire  [7:0] joystick_0;
 wire  [7:0] joystick_1;
+wire  [7:0] joy0 = status[7] ? joystick_1 : joystick_0; // Kempston
+wire  [7:0] joy1 = status[7] ? joystick_0 : joystick_1; // Sinclair
+
 wire  [1:0] buttons;
 wire  [1:0] switches;
 wire        scandoubler_disable;
@@ -294,12 +298,12 @@ always_comb begin
 		'b1X01XXXXXXX: cpu_din = fdd_dout;
 		'b1X001XXXXXX: cpu_din = (addr[14:13] == 2'b11 ? page_reg : page_reg_plus3);
 		'b1X0001XXXXX: cpu_din = mmc_dout;
-		'b1X00001XXXX: cpu_din = mouse_sel ? mouse_data : {2'b00, joystick_0[5:0]};
+		'b1X00001XXXX: cpu_din = mouse_sel ? mouse_data : {2'b00, joy0[5:0]};
 		'b1X000001XXX: cpu_din = {page_scr_copy, 7'b1111111};
 		'b1X00000011X: cpu_din = (addr[14] ? sound_data : 8'hFF);
 		'b1X000000101: cpu_din = ulap_dout;
 		'b1X000000100: cpu_din = port_ff;
-		'b1X0000000XX: cpu_din = {1'b1, ~tape_in, 1'b1, key_data[4:0] & ({5{addr[12]}} | ~{joystick_1[1:0], joystick_1[2], joystick_1[3], joystick_1[4]})};
+		'b1X0000000XX: cpu_din = {1'b1, ~tape_in, 1'b1, key_data[4:0] & ({5{addr[12]}} | ~{joy1[1:0], joy1[2], joy1[3], joy1[4]})};
 		'b1X1XXXXXXXX: cpu_din = 8'hFF;
 	endcase
 end
@@ -581,7 +585,7 @@ always @(posedge clk_sys) begin
 	reg old_status = 0;
 	old_status <= ps2_mouse[24];
 
-	if(joystick_0[5:0]) mouse_sel <= 0;
+	if(joy0[5:0]) mouse_sel <= 0;
 	if(old_status != ps2_mouse[24]) mouse_sel <= 1;
 end
 
