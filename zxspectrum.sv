@@ -856,7 +856,7 @@ always @(posedge clk_sys) begin
 end
 
 assign UART_TX = 1;
-assign tape_in = tape_loaded_reg ? tape_vin : ~UART_RX | ~(ear_out | mic_out);
+assign tape_in = tape_loaded_reg ? tape_vin : ~UART_RX;
 
 
 endmodule
