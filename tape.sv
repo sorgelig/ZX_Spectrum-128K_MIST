@@ -63,11 +63,10 @@ tzxplayer #(.TZX_MS(CLOCK/1000)) tzxplayer
 (
 	.clk(clk_sys),
 	.ce(ce),
+	.tzx_req(tzx_req),
+	.tzx_ack(tzx_ack),
 	.restart_tape(~tape_ready || tape_mode != 2'b10),
 	.host_tap_in(din_r),
-	.host_tap_wrreq(tape_wrreq),
-	.tap_fifo_wrfull(tape_wrfull),
-	.tap_fifo_error(tape_finish),
 	.cass_read(tzx_audio),
 	.cass_motor(!play_pause && tape_mode == 2'b10)
 );
@@ -82,10 +81,9 @@ reg         rd_req;
 reg  [24:0] size;
 reg         play_pause;
 reg  [7:0]  din_r;
-reg         tape_wrreq;
-reg         tape_wrfull;
 wire        tzx_audio;
-wire        tape_finish;
+wire        tzx_req;
+reg         tzx_ack;
 
 always @(posedge clk_sys) begin
 	reg old_pause, old_prev, old_next, old_ready, old_rden;
@@ -107,6 +105,7 @@ always @(posedge clk_sys) begin
 	reg        auto_blk;
 	reg  [4:0] blk_num;
 	reg        old_stdload;
+	reg        old_read_done;
 
 	old_rden <= rd_en;
 
@@ -124,8 +123,8 @@ always @(posedge clk_sys) begin
 		end
 	end
 
-	active <= !play_pause && ((tape_mode == 2'b10 && !tape_finish) || read_cnt);
-	available <= (tape_mode == 2'b10 && !tape_finish) || read_cnt;
+	active <= !play_pause && read_cnt;
+	available <= |read_cnt;
 
 	old_ready <= tape_ready;
 	if(tape_ready & ~old_ready) begin
@@ -140,16 +139,16 @@ always @(posedge clk_sys) begin
 		end
 	end
 
-	tape_wrreq <= 0;
-	// Fill TZX FIFO
+	// supply TZX data
+	old_read_done <= read_done;
 	if (tape_ready && tape_mode == 2'b10) begin
 		audio_out <= tzx_audio;
-
-		if(read_done && !tape_wrfull && read_cnt) begin
-			tape_wrreq <= 1;
-			read_done <= 0;
-			read_cnt  <= read_cnt - 1'd1;
+		if(~old_read_done & read_done) begin
+			tzx_ack <= tzx_req;
+			read_cnt <= read_cnt - 1'd1;
 			addr <= addr + 1'b1;
+		end else if (read_cnt && read_done && (tzx_req ^ tzx_ack)) begin
+			read_done <= 0;
 		end
 	end
 

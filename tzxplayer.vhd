@@ -22,9 +22,8 @@ port(
 	                                -- reset tap header bytes skip counter
 
 	host_tap_in     : in std_logic_vector(7 downto 0);  -- 8bits fifo input
-	host_tap_wrreq  : in std_logic;                     -- set to 1 for 1 clk to write 1 word
-	tap_fifo_wrfull : out std_logic;                    -- do not write when fifo tap_fifo_full = 1
-	tap_fifo_error  : out std_logic;                    -- fifo fall empty (unrecoverable error)
+	tzx_req         : buffer std_logic;                 -- request for new byte (edge trigger)
+	tzx_ack         : in std_logic;                     -- new data available
 
 	cass_read  : buffer std_logic;   -- tape read signal
 	cass_motor : in  std_logic    -- 1 = tape motor is powered
@@ -50,8 +49,6 @@ constant NORMAL_PILOT_PULSES : integer := 4031;
 --constant NORMAL_PILOT_PULSES : integer := 4096;
 
 signal tap_fifo_do    : std_logic_vector(7 downto 0);
-signal tap_fifo_rdreq : std_logic;
-signal tap_fifo_empty : std_logic;
 signal tick_cnt       : std_logic_vector(16 downto 0);
 signal wave_cnt       : std_logic_vector(15 downto 0);
 signal wave_period    : std_logic;
@@ -100,20 +97,8 @@ signal cass_motor_D   : std_logic;
 signal motor_counter  : std_logic_vector(21 downto 0);
 
 begin
--- for wav mode use large depth fifo (eg 512 x 32bits)
--- for tap mode fifo may be smaller (eg 16 x 32bits)
-tap_fifo_inst : entity work.tap_fifo
-port map(
-	sclr	 => restart_tape,
-	data	 => host_tap_in,
-	clock	 => clk,
-	rdreq	 => tap_fifo_rdreq,
-	wrreq	 => host_tap_wrreq,
-	q	     => tap_fifo_do,
-	empty	 => tap_fifo_empty,
-	full	 => tap_fifo_wrfull
-);
 
+tap_fifo_do <= host_tap_in;
 process(clk)
 begin
   if rising_edge(clk) then
@@ -125,9 +110,7 @@ begin
 		motor_counter <= (others => '0');
 		wave_period <= '0';
 		playing <= '0';
-
-		tap_fifo_rdreq <='0';
-		tap_fifo_error <='0'; -- run out of data
+		tzx_req <= tzx_ack;
 
 	else
 
@@ -168,29 +151,22 @@ begin
 			wave_cnt <= (others => '0');
 		end if;
 
-		tap_fifo_rdreq <= '0';
+		if playing = '1' and pulse_len = 0 and tzx_req = tzx_ack then
 
-		if playing = '1' and pulse_len = 0 then
-
-			if tap_fifo_empty = '1' then
-				tap_fifo_error <= '1';
-			else
-				tap_fifo_rdreq <= '1';
-			end if;
+			tzx_req <= not tzx_ack; -- default request for new data
 
 			case tzx_state is
 			when TZX_HEADER =>
 				cass_read <= '1';
 				tzx_offset <= tzx_offset + 1;
-				if tzx_offset = x"0B" then -- skip 9 bytes, offset lags 2
+				if tzx_offset = x"0A" then -- skip 9 bytes, offset lags 1
 					tzx_state <= TZX_NEWBLOCK;
 				end if;
 
 			when TZX_NEWBLOCK =>
 				tzx_offset <= (others=>'0');
 				ms_counter <= (others=>'0');
-				if tap_fifo_empty = '0' then
-					case tap_fifo_do is
+				case tap_fifo_do is
 					when x"20" => tzx_state <= TZX_PAUSE;
 					when x"33" => tzx_state <= TZX_HWTYPE;
 					when x"30" => tzx_state <= TZX_TEXT;
@@ -204,13 +180,12 @@ begin
 					when x"10" => tzx_state <= TZX_NORMAL;
 					when x"11" => tzx_state <= TZX_TURBO;
 					when others => null;
-					end case;
-				end if;
+				end case;
 
 			when TZX_PAUSE =>
 				tzx_offset <= tzx_offset + 1;
 				if tzx_offset = x"00" then 
-					tap_fifo_rdreq <= '0';
+					tzx_req <= tzx_ack; -- don't request new byte
 					pause_len(7 downto 0) <= tap_fifo_do;
 				elsif tzx_offset = x"01" then
 					pause_len(15 downto 8) <= tap_fifo_do;
@@ -218,13 +193,12 @@ begin
 				end if;
 
 			when TZX_PAUSE2 =>
-				tap_fifo_rdreq <= '0';
+				tzx_req <= tzx_ack; -- don't request new byte
 				if ms_counter /= 0 then if ce = '1' then ms_counter <= ms_counter - 1; end if;
 				elsif pause_len /= 0 then
 					pause_len <= pause_len - 1;
 					ms_counter <= conv_std_logic_vector(TZX_MS, 16);
 				else
-					tap_fifo_rdreq <= '1';
 					tzx_state <= TZX_NEWBLOCK;
 				end if;
 
@@ -271,13 +245,13 @@ begin
 				elsif tzx_offset = x"01" then pilot_l(15 downto 8) <= tap_fifo_do;
 				elsif tzx_offset = x"02" then pilot_pulses( 7 downto 0) <= tap_fifo_do;
 				elsif tzx_offset = x"03" then
-					tap_fifo_rdreq <= '0';
+					tzx_req <= tzx_ack; -- don't request new byte
 					pilot_pulses(15 downto 8) <= tap_fifo_do;
 				else
 					tzx_offset <= x"04";
-					tap_fifo_rdreq <= '0';
+					tzx_req <= tzx_ack; -- don't request new byte
 					if pilot_pulses = 0 then
-						tap_fifo_rdreq <= '1';
+						tzx_req <= not tzx_ack; -- default request for new data
 						tzx_state <= TZX_NEWBLOCK;
 					else
 						pilot_pulses <= pilot_pulses - 1;
@@ -292,7 +266,7 @@ begin
 				if    tzx_offset = x"00" then data_len( 7 downto  0) <= tap_fifo_do;
 				elsif tzx_offset = x"01" then one_l( 7 downto 0) <= tap_fifo_do;
 				elsif tzx_offset = x"02" then
-					tap_fifo_rdreq <= '0';
+					tzx_req <= tzx_ack; -- don't request new byte
 					end_period <= wave_period;
 					pulse_len <= tap_fifo_do & one_l( 7 downto 0);
 				elsif tzx_offset = x"03" then
@@ -316,7 +290,7 @@ begin
 				elsif tzx_offset = x"07" then data_len ( 7 downto  0) <= tap_fifo_do;
 				elsif tzx_offset = x"08" then data_len (15 downto  8) <= tap_fifo_do;
 				elsif tzx_offset = x"09" then
-					tap_fifo_rdreq <= '0';
+					tzx_req <= tzx_ack; -- don't request new byte
 					data_len (23 downto 16) <= tap_fifo_do;
 					tzx_state <= TZX_PLAY_TAPBLOCK;
 				end if;
@@ -327,7 +301,7 @@ begin
 				elsif tzx_offset = x"01" then pause_len(15 downto  8) <= tap_fifo_do;
 				elsif tzx_offset = x"02" then data_len ( 7 downto  0) <= tap_fifo_do;
 				elsif tzx_offset = x"03" then
-					tap_fifo_rdreq <= '0';
+					tzx_req <= tzx_ack; -- don't request new byte
 					data_len(15 downto  8) <= tap_fifo_do;
 					data_len(23 downto 16) <= (others => '0');
 					pilot_l <= conv_std_logic_vector(NORMAL_PILOT_LEN, 16);
@@ -360,13 +334,13 @@ begin
 				elsif tzx_offset = x"0F" then data_len ( 7 downto  0) <= tap_fifo_do;
 				elsif tzx_offset = x"10" then data_len (15 downto  8) <= tap_fifo_do;
 				elsif tzx_offset = x"11" then
-					tap_fifo_rdreq <= '0';
+					tzx_req <= tzx_ack; -- don't request new byte
 					data_len (23 downto 16) <= tap_fifo_do;
 					tzx_state <= TZX_PLAY_TONE;
 				end if;
 
 			when TZX_PLAY_TONE =>
-				tap_fifo_rdreq <= '0';
+				tzx_req <= tzx_ack; -- don't request new byte
 				end_period <= not wave_period;
 				pulse_len <= pilot_l;
 				if pilot_pulses /= 0 then
@@ -376,24 +350,23 @@ begin
 				end if;
 
 			when TZX_PLAY_SYNC1 =>
-				tap_fifo_rdreq <= '0';
+				tzx_req <= tzx_ack; -- don't request new byte
 				end_period <= wave_period;
 				pulse_len <= sync1_l;
 				tzx_state <= TZX_PLAY_SYNC2;
 
 			when TZX_PLAY_SYNC2 =>
-				tap_fifo_rdreq <= '0';
+				tzx_req <= tzx_ack; -- don't request new byte
 				end_period <= wave_period;
 				pulse_len <= sync2_l;
 				tzx_state <= TZX_PLAY_TAPBLOCK;
 
 			when TZX_PLAY_TAPBLOCK =>
-				tap_fifo_rdreq <= '0';
 				bit_cnt <= "111";
 				tzx_state <= TZX_PLAY_TAPBLOCK2;
 
 			when TZX_PLAY_TAPBLOCK2 =>
-				tap_fifo_rdreq <= '0';
+				tzx_req <= tzx_ack; -- don't request new byte
 				bit_cnt <= bit_cnt - 1;
 				if bit_cnt = "000" then 
 					data_len <= data_len - 1;
@@ -414,7 +387,7 @@ begin
 				end if;
 
 			when TZX_PLAY_TAPBLOCK4 =>
-				tap_fifo_rdreq <= '0';
+				tzx_req <= tzx_ack; -- don't request new byte
 				tzx_state <= TZX_PLAY_TAPBLOCK2;
 
 			when others => null;
