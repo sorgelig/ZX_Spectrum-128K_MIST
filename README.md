@@ -98,6 +98,11 @@ You will be able to use bare Multiface ROM by simple subsequent presses of **RSh
 **Note:** Multiface 128 expose its port, thus if game has protection against Multiface, it won't work, unless you press (o)ff before you exit from the Multiface menu. Thus using +D snapshot is prefered.
 When using the Spectrum +2A/3 mode, the Multiface 3 is supported. There's no Genie for the +3, but there are useful toolkit routines in the stock ROM.
 
+### ROM Format:
+
+You can create your own ***spectrum.rom***, for example to replace +3 ROMs with +3e.
+The format is: Boot (GLUK) + TRDOS + 128 ROM0 + 128 ROM1 + +3 ROM0/1/2/3 + PlusD + MF128 + MF3 + 48K ROM. Each part is 16k.
+
 ### Special Keys:
 - Ctrl+F11 - warm reset
 - Alt+F11 - cold reset will disk unload
