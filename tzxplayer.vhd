@@ -215,7 +215,6 @@ begin
 			when TZX_PAUSE =>
 				tzx_offset <= tzx_offset + 1;
 				if tzx_offset = x"00" then 
-					tzx_req <= tzx_ack; -- don't request new byte
 					pause_len(7 downto 0) <= tap_fifo_do;
 				elsif tzx_offset = x"01" then
 					pause_len(15 downto 8) <= tap_fifo_do;
