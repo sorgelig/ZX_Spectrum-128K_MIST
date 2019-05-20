@@ -398,7 +398,7 @@ begin
 			when TZX_PLAY_TAPBLOCK2 =>
 				tzx_req <= tzx_ack; -- don't request new byte
 				bit_cnt <= bit_cnt - 1;
-				if bit_cnt = "000" then 
+				if bit_cnt = "000" or (data_len = 1 and ((bit_cnt = (8 - last_byte_bits)) or (last_byte_bits = 0))) then
 					data_len <= data_len - 1;
 					tzx_state <= TZX_PLAY_TAPBLOCK3;
 				end if;
