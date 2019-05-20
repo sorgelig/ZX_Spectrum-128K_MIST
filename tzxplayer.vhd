@@ -24,6 +24,8 @@ port(
 	host_tap_in     : in std_logic_vector(7 downto 0);  -- 8bits fifo input
 	tzx_req         : buffer std_logic;                 -- request for new byte (edge trigger)
 	tzx_ack         : in std_logic;                     -- new data available
+	loop_start      : out std_logic;                    -- active for one clock if a loop starts
+	loop_next       : out std_logic;                    -- active for one clock at the next iteration
 
 	cass_read  : buffer std_logic;   -- tape read signal
 	cass_motor : in  std_logic    -- 1 = tape motor is powered
@@ -59,6 +61,8 @@ signal bit_cnt        : std_logic_vector(2 downto 0);
 type tzx_state_t is (
 	TZX_HEADER,
 	TZX_NEWBLOCK,
+	TZX_LOOP_START,
+	TZX_LOOP_END,
 	TZX_PAUSE,
 	TZX_PAUSE2,
 	TZX_HWTYPE,
@@ -95,6 +99,7 @@ signal pulse_len      : std_logic_vector(15 downto 0);
 signal end_period     : std_logic;
 signal cass_motor_D   : std_logic;
 signal motor_counter  : std_logic_vector(21 downto 0);
+signal loop_iter      : std_logic_vector(15 downto 0);
 
 begin
 
@@ -111,6 +116,9 @@ begin
 		wave_period <= '0';
 		playing <= '0';
 		tzx_req <= tzx_ack;
+		loop_start <= '0';
+		loop_next <= '0';
+		loop_iter <= (others => '0');
 
 	else
 
@@ -151,6 +159,8 @@ begin
 			wave_cnt <= (others => '0');
 		end if;
 
+		loop_start <= '0';
+		loop_next  <= '0';
 		if playing = '1' and pulse_len = 0 and tzx_req = tzx_ack then
 
 			tzx_req <= not tzx_ack; -- default request for new data
@@ -179,8 +189,28 @@ begin
 					when x"14" => tzx_state <= TZX_DATA;
 					when x"10" => tzx_state <= TZX_NORMAL;
 					when x"11" => tzx_state <= TZX_TURBO;
+					when x"24" => tzx_state <= TZX_LOOP_START;
+					when x"25" => tzx_state <= TZX_LOOP_END;
 					when others => null;
 				end case;
+
+			when TZX_LOOP_START =>
+				tzx_offset <= tzx_offset + 1;
+				if    tzx_offset = x"00" then loop_iter( 7 downto  0) <= tap_fifo_do;
+				elsif tzx_offset = x"01" then
+					loop_iter(15 downto  8) <= tap_fifo_do;
+					tzx_state <= TZX_NEWBLOCK;
+					loop_start <= '1';
+				end if;
+
+			when TZX_LOOP_END =>
+				if loop_iter > 1 then
+					loop_iter <= loop_iter - 1;
+					loop_next <= '1';
+				else
+					tzx_req <= tzx_ack; -- don't request new byte
+				end if;
+				tzx_state <= TZX_NEWBLOCK;
 
 			when TZX_PAUSE =>
 				tzx_offset <= tzx_offset + 1;
