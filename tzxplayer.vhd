@@ -26,6 +26,8 @@ port(
 	tzx_ack         : in std_logic;                     -- new data available
 	loop_start      : out std_logic;                    -- active for one clock if a loop starts
 	loop_next       : out std_logic;                    -- active for one clock at the next iteration
+	stop            : out std_logic;                    -- tape should be stopped
+	stop48k         : out std_logic;                    -- tape should be stopped in 48k mode
 
 	cass_read  : buffer std_logic;   -- tape read signal
 	cass_motor : in  std_logic    -- 1 = tape motor is powered
@@ -65,10 +67,13 @@ type tzx_state_t is (
 	TZX_LOOP_END,
 	TZX_PAUSE,
 	TZX_PAUSE2,
+	TZX_STOP48K,
 	TZX_HWTYPE,
 	TZX_TEXT,
 	TZX_MESSAGE,
 	TZX_ARCHIVE_INFO,
+	TZX_CUSTOM_INFO,
+	TZX_GLUE,
 	TZX_TONE,
 	TZX_PULSES,
 	TZX_DATA,
@@ -100,6 +105,7 @@ signal end_period     : std_logic;
 signal cass_motor_D   : std_logic;
 signal motor_counter  : std_logic_vector(21 downto 0);
 signal loop_iter      : std_logic_vector(15 downto 0);
+signal data_len_dword : std_logic_vector(31 downto 0);
 
 begin
 
@@ -161,6 +167,9 @@ begin
 
 		loop_start <= '0';
 		loop_next  <= '0';
+		stop       <= '0';
+		stop48k    <= '0';
+
 		if playing = '1' and pulse_len = 0 and tzx_req = tzx_ack then
 
 			tzx_req <= not tzx_ack; -- default request for new data
@@ -177,20 +186,31 @@ begin
 				tzx_offset <= (others=>'0');
 				ms_counter <= (others=>'0');
 				case tap_fifo_do is
-					when x"20" => tzx_state <= TZX_PAUSE;
-					when x"33" => tzx_state <= TZX_HWTYPE;
-					when x"30" => tzx_state <= TZX_TEXT;
-					when x"31" => tzx_state <= TZX_MESSAGE;
-					when x"32" => tzx_state <= TZX_ARCHIVE_INFO;
-					when x"21" => tzx_state <= TZX_TEXT; -- Group start
-					when x"22" => null; -- Group end
+					when x"10" => tzx_state <= TZX_NORMAL;
+					when x"11" => tzx_state <= TZX_TURBO;
 					when x"12" => tzx_state <= TZX_TONE;
 					when x"13" => tzx_state <= TZX_PULSES;
 					when x"14" => tzx_state <= TZX_DATA;
-					when x"10" => tzx_state <= TZX_NORMAL;
-					when x"11" => tzx_state <= TZX_TURBO;
+					when x"15" => null; -- Direct Recoding Block (not implemented)
+					when x"18" => null; -- CSW recording (not implemented)
+					when x"19" => null; -- Generalized data block (not implemented)
+					when x"20" => tzx_state <= TZX_PAUSE;
+					when x"21" => tzx_state <= TZX_TEXT; -- Group start
+					when x"22" => null; -- Group end
+					when x"23" => null; -- Jump to block (not implemented)
 					when x"24" => tzx_state <= TZX_LOOP_START;
 					when x"25" => tzx_state <= TZX_LOOP_END;
+					when x"26" => null; -- Call sequence (not implemented)
+					when x"27" => null; -- Return from sequence (not implemented)
+					when x"28" => null; -- Select block (not implemented)
+					when x"2A" => tzx_state <= TZX_STOP48K;
+					when x"2B" => null; -- Set signal level (not implemented)
+					when x"30" => tzx_state <= TZX_TEXT;
+					when x"31" => tzx_state <= TZX_MESSAGE;
+					when x"32" => tzx_state <= TZX_ARCHIVE_INFO;
+					when x"33" => tzx_state <= TZX_HWTYPE;
+					when x"35" => tzx_state <= TZX_CUSTOM_INFO;
+					when x"5A" => tzx_state <= TZX_GLUE;
 					when others => null;
 				end case;
 
@@ -219,6 +239,9 @@ begin
 				elsif tzx_offset = x"01" then
 					pause_len(15 downto 8) <= tap_fifo_do;
 					tzx_state <= TZX_PAUSE2;
+					if pause_len(7 downto 0) = 0 and tap_fifo_do = 0 then
+						stop <= '1';
+					end if;
 				end if;
 
 			when TZX_PAUSE2 =>
@@ -228,6 +251,13 @@ begin
 					pause_len <= pause_len - 1;
 					ms_counter <= conv_std_logic_vector(TZX_MS, 16);
 				else
+					tzx_state <= TZX_NEWBLOCK;
+				end if;
+
+			when TZX_STOP48K =>
+				tzx_offset <= tzx_offset + 1;
+				if tzx_offset = x"03" then
+					stop48k <= '1';
 					tzx_state <= TZX_NEWBLOCK;
 				end if;
 
@@ -265,6 +295,27 @@ begin
 					if data_len = 1 then
 						tzx_state <= TZX_NEWBLOCK;
 					end if;
+				end if;
+
+			when TZX_CUSTOM_INFO =>
+				tzx_offset <= tzx_offset + 1;
+				if    tzx_offset = x"10" then data_len_dword( 7 downto  0) <= tap_fifo_do;
+				elsif tzx_offset = x"11" then data_len_dword(15 downto  8) <= tap_fifo_do;
+				elsif tzx_offset = x"12" then data_len_dword(23 downto 16) <= tap_fifo_do;
+				elsif tzx_offset = x"13" then data_len_dword(31 downto 24) <= tap_fifo_do;
+				elsif tzx_offset = x"14" then
+					tzx_offset <= x"14";
+					if data_len_dword = 1 then
+						tzx_state <= TZX_NEWBLOCK;
+					else
+						data_len_dword <= data_len_dword - 1;
+					end if;
+				end if;
+
+			when TZX_GLUE =>
+				tzx_offset <= tzx_offset + 1;
+				if tzx_offset = x"08" then
+					tzx_state <= TZX_NEWBLOCK;
 				end if;
 
 			when TZX_TONE =>
