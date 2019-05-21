@@ -815,6 +815,7 @@ smart_tape tape
 	.ce(ce_tape),
 
 	.turbo(tape_turbo),
+	.mode48k(page_disable),
 	.pause(Fn[1]),
 	.prev(Fn[2]),
 	.next(Fn[3]),

@@ -27,6 +27,7 @@ port(
 	loop_start      : out std_logic;                    -- active for one clock if a loop starts
 	loop_next       : out std_logic;                    -- active for one clock at the next iteration
 	stop            : out std_logic;                    -- tape should be stopped
+	stop48k         : out std_logic;                    -- tape should be stopped in 48k mode
 
 	cass_read  : buffer std_logic;   -- tape read signal
 	cass_motor : in  std_logic    -- 1 = tape motor is powered
@@ -66,6 +67,7 @@ type tzx_state_t is (
 	TZX_LOOP_END,
 	TZX_PAUSE,
 	TZX_PAUSE2,
+	TZX_STOP48K,
 	TZX_HWTYPE,
 	TZX_TEXT,
 	TZX_MESSAGE,
@@ -163,6 +165,7 @@ begin
 		loop_start <= '0';
 		loop_next  <= '0';
 		stop       <= '0';
+		stop48k    <= '0';
 
 		if playing = '1' and pulse_len = 0 and tzx_req = tzx_ack then
 
@@ -197,7 +200,7 @@ begin
 					when x"26" => null; -- Call sequence (not implemented)
 					when x"27" => null; -- Return from sequence (not implemented)
 					when x"28" => null; -- Select block (not implemented)
-					when x"2A" => null; -- Stop the tape in 48k mode (not implemented)
+					when x"2A" => tzx_state <= TZX_STOP48K;
 					when x"2B" => null; -- Set signal level (not implemented)
 					when x"30" => tzx_state <= TZX_TEXT;
 					when x"31" => tzx_state <= TZX_MESSAGE;
@@ -245,6 +248,13 @@ begin
 					pause_len <= pause_len - 1;
 					ms_counter <= conv_std_logic_vector(TZX_MS, 16);
 				else
+					tzx_state <= TZX_NEWBLOCK;
+				end if;
+
+			when TZX_STOP48K =>
+				tzx_offset <= tzx_offset + 1;
+				if tzx_offset = x"03" then
+					stop48k <= '1';
 					tzx_state <= TZX_NEWBLOCK;
 				end if;
 
