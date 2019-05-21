@@ -73,6 +73,7 @@ type tzx_state_t is (
 	TZX_MESSAGE,
 	TZX_ARCHIVE_INFO,
 	TZX_CUSTOM_INFO,
+	TZX_GLUE,
 	TZX_TONE,
 	TZX_PULSES,
 	TZX_DATA,
@@ -209,7 +210,7 @@ begin
 					when x"32" => tzx_state <= TZX_ARCHIVE_INFO;
 					when x"33" => tzx_state <= TZX_HWTYPE;
 					when x"35" => tzx_state <= TZX_CUSTOM_INFO;
-					when x"5A" => null; -- Glue block (not implemented)
+					when x"5A" => tzx_state <= TZX_GLUE;
 					when others => null;
 				end case;
 
@@ -309,6 +310,12 @@ begin
 					else
 						data_len_dword <= data_len_dword - 1;
 					end if;
+				end if;
+
+			when TZX_GLUE =>
+				tzx_offset <= tzx_offset + 1;
+				if tzx_offset = x"08" then
+					tzx_state <= TZX_NEWBLOCK;
 				end if;
 
 			when TZX_TONE =>
