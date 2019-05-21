@@ -26,6 +26,7 @@ port(
 	tzx_ack         : in std_logic;                     -- new data available
 	loop_start      : out std_logic;                    -- active for one clock if a loop starts
 	loop_next       : out std_logic;                    -- active for one clock at the next iteration
+	stop            : out std_logic;                    -- tape should be stopped
 
 	cass_read  : buffer std_logic;   -- tape read signal
 	cass_motor : in  std_logic    -- 1 = tape motor is powered
@@ -161,6 +162,8 @@ begin
 
 		loop_start <= '0';
 		loop_next  <= '0';
+		stop       <= '0';
+
 		if playing = '1' and pulse_len = 0 and tzx_req = tzx_ack then
 
 			tzx_req <= not tzx_ack; -- default request for new data
@@ -230,6 +233,9 @@ begin
 				elsif tzx_offset = x"01" then
 					pause_len(15 downto 8) <= tap_fifo_do;
 					tzx_state <= TZX_PAUSE2;
+					if pause_len(7 downto 0) = 0 and tap_fifo_do = 0 then
+						stop <= '1';
+					end if;
 				end if;
 
 			when TZX_PAUSE2 =>

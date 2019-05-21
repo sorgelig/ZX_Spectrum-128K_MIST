@@ -67,6 +67,7 @@ tzxplayer #(.TZX_MS(CLOCK/1000)) tzxplayer
 	.tzx_ack(tzx_ack),
 	.loop_start(tzx_loop_start),
 	.loop_next(tzx_loop_next),
+	.stop(tzx_stop),
 	.restart_tape(~tape_ready || tape_mode != 2'b10),
 	.host_tap_in(din_r),
 	.cass_read(tzx_audio),
@@ -88,6 +89,7 @@ wire        tzx_req;
 reg         tzx_ack;
 wire        tzx_loop_start;
 wire        tzx_loop_next;
+wire        tzx_stop;
 
 always @(posedge clk_sys) begin
 	reg old_pause, old_prev, old_next, old_ready, old_rden;
@@ -148,6 +150,7 @@ always @(posedge clk_sys) begin
 	old_read_done <= read_done;
 	if (tape_ready && tape_mode == 2'b10) begin
 		audio_out <= tzx_audio;
+		if(tzx_stop) play_pause <= 1;
 		if(tzx_loop_start) tzx_loop_addr <= addr;
 		if(tzx_loop_next) begin
 			addr <= tzx_loop_addr;
