@@ -72,6 +72,7 @@ type tzx_state_t is (
 	TZX_TEXT,
 	TZX_MESSAGE,
 	TZX_ARCHIVE_INFO,
+	TZX_CUSTOM_INFO,
 	TZX_TONE,
 	TZX_PULSES,
 	TZX_DATA,
@@ -103,6 +104,7 @@ signal end_period     : std_logic;
 signal cass_motor_D   : std_logic;
 signal motor_counter  : std_logic_vector(21 downto 0);
 signal loop_iter      : std_logic_vector(15 downto 0);
+signal data_len_dword : std_logic_vector(31 downto 0);
 
 begin
 
@@ -206,7 +208,7 @@ begin
 					when x"31" => tzx_state <= TZX_MESSAGE;
 					when x"32" => tzx_state <= TZX_ARCHIVE_INFO;
 					when x"33" => tzx_state <= TZX_HWTYPE;
-					when x"35" => null; -- Custom info block (not implemented)
+					when x"35" => tzx_state <= TZX_CUSTOM_INFO;
 					when x"5A" => null; -- Glue block (not implemented)
 					when others => null;
 				end case;
@@ -291,6 +293,21 @@ begin
 					data_len <= data_len - 1;
 					if data_len = 1 then
 						tzx_state <= TZX_NEWBLOCK;
+					end if;
+				end if;
+
+			when TZX_CUSTOM_INFO =>
+				tzx_offset <= tzx_offset + 1;
+				if    tzx_offset = x"10" then data_len_dword( 7 downto  0) <= tap_fifo_do;
+				elsif tzx_offset = x"11" then data_len_dword(15 downto  8) <= tap_fifo_do;
+				elsif tzx_offset = x"12" then data_len_dword(23 downto 16) <= tap_fifo_do;
+				elsif tzx_offset = x"13" then data_len_dword(31 downto 24) <= tap_fifo_do;
+				elsif tzx_offset = x"14" then
+					tzx_offset <= x"14";
+					if data_len_dword = 1 then
+						tzx_state <= TZX_NEWBLOCK;
+					else
+						data_len_dword <= data_len_dword - 1;
 					end if;
 				end if;
 
