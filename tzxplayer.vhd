@@ -177,20 +177,31 @@ begin
 				tzx_offset <= (others=>'0');
 				ms_counter <= (others=>'0');
 				case tap_fifo_do is
-					when x"20" => tzx_state <= TZX_PAUSE;
-					when x"33" => tzx_state <= TZX_HWTYPE;
-					when x"30" => tzx_state <= TZX_TEXT;
-					when x"31" => tzx_state <= TZX_MESSAGE;
-					when x"32" => tzx_state <= TZX_ARCHIVE_INFO;
-					when x"21" => tzx_state <= TZX_TEXT; -- Group start
-					when x"22" => null; -- Group end
+					when x"10" => tzx_state <= TZX_NORMAL;
+					when x"11" => tzx_state <= TZX_TURBO;
 					when x"12" => tzx_state <= TZX_TONE;
 					when x"13" => tzx_state <= TZX_PULSES;
 					when x"14" => tzx_state <= TZX_DATA;
-					when x"10" => tzx_state <= TZX_NORMAL;
-					when x"11" => tzx_state <= TZX_TURBO;
+					when x"15" => null; -- Direct Recoding Block (not implemented)
+					when x"18" => null; -- CSW recording (not implemented)
+					when x"19" => null; -- Generalized data block (not implemented)
+					when x"20" => tzx_state <= TZX_PAUSE;
+					when x"21" => tzx_state <= TZX_TEXT; -- Group start
+					when x"22" => null; -- Group end
+					when x"23" => null; -- Jump to block (not implemented)
 					when x"24" => tzx_state <= TZX_LOOP_START;
 					when x"25" => tzx_state <= TZX_LOOP_END;
+					when x"26" => null; -- Call sequence (not implemented)
+					when x"27" => null; -- Return from sequence (not implemented)
+					when x"28" => null; -- Select block (not implemented)
+					when x"2A" => null; -- Stop the tape in 48k mode (not implemented)
+					when x"2B" => null; -- Set signal level (not implemented)
+					when x"30" => tzx_state <= TZX_TEXT;
+					when x"31" => tzx_state <= TZX_MESSAGE;
+					when x"32" => tzx_state <= TZX_ARCHIVE_INFO;
+					when x"33" => tzx_state <= TZX_HWTYPE;
+					when x"35" => null; -- Custom info block (not implemented)
+					when x"5A" => null; -- Glue block (not implemented)
 					when others => null;
 				end case;
 
