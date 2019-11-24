@@ -60,12 +60,12 @@ assign SDRAM_nRAS = command[2];
 assign SDRAM_nCAS = command[1];
 assign SDRAM_nWE  = command[0];
 assign SDRAM_CKE  = cke;
-assign dout       = latched ? data_l : data_d;
+assign dout       = data_l;
 
 // no burst configured
 localparam BURST_LENGTH        = 3'b000;   // 000=1, 001=2, 010=4, 011=8
 localparam ACCESS_TYPE         = 1'b0;     // 0=sequential, 1=interleaved
-localparam CAS_LATENCY         = 3'd2;     // 2 for < 100MHz, 3 for >100MHz
+localparam CAS_LATENCY         = 3'd3;     // 2 for < 100MHz, 3 for >100MHz
 localparam OP_MODE             = 2'b00;    // only 00 (standard operation) allowed
 localparam NO_WRITE_BURST      = 1'b1;     // 0= write burst enabled, 1=only single access write
 localparam MODE                = {3'b000, NO_WRITE_BURST, OP_MODE, CAS_LATENCY, ACCESS_TYPE, BURST_LENGTH};
@@ -90,10 +90,8 @@ reg  [3:0] command = CMD_INHIBIT;
 reg        cke     = 0;
 reg [24:0] save_addr;
 
-reg        latched;
 reg [15:0] data;
 wire[15:0] data_l = save_addr[0] ? {data[7:0],     data[15:8]}     : {data[15:8],     data[7:0]};
-wire[15:0] data_d = save_addr[0] ? {SDRAM_DQ[7:0], SDRAM_DQ[15:8]} : {SDRAM_DQ[15:8], SDRAM_DQ[7:0]};
 
 typedef enum
 {
@@ -115,16 +113,19 @@ always @(posedge clk) begin
 	reg        new_rd;
 	reg        save_we = 1;
 
+	reg        refresh_needed;
+
 	state_t state = STATE_STARTUP;
 
 	command <= CMD_NOP;
-	refresh_count  <= refresh_count+1'b1;
+	SDRAM_DQ   <= 16'bZZZZZZZZZZZZZZZZ;
 
+	refresh_count  <= refresh_count+1'b1;
+	refresh_needed <= (refresh_count > (cycles_per_refresh<<1));
 	data_ready_delay <= {1'b0, data_ready_delay[CAS_LATENCY:1]};
 
-	// make it ready 1T in advance
-	if(data_ready_delay[1]) {latched, ready} <= {1'b0, 1'b1};
-	if(data_ready_delay[0]) {latched, data}  <= {1'b1, SDRAM_DQ};
+	// latch input data in the Fast input register
+	if(data_ready_delay[0]) {ready, data}  <= {1'b1, SDRAM_DQ};
 
 	case(state)
 		STATE_STARTUP: begin
@@ -147,7 +148,6 @@ always @(posedge clk) begin
 			//--  * 2 cycles wait
 			//------------------------------------------------------------------------
 			cke        <= 1;
-			SDRAM_DQ   <= 16'bZZZZZZZZZZZZZZZZ;
 			SDRAM_DQML <= 1;
 			SDRAM_DQMH <= 1;
 			SDRAM_A    <= 0;
@@ -188,25 +188,19 @@ always @(posedge clk) begin
 		STATE_IDLE_4: state <= STATE_IDLE_3;
 		STATE_IDLE_3: state <= STATE_IDLE_2;
 		STATE_IDLE_2: state <= STATE_IDLE_1;
-		STATE_IDLE_1: begin
-			SDRAM_DQ   <= 16'bZZZZZZZZZZZZZZZZ;
-			state      <= STATE_IDLE;
-			// mask possible refresh to reduce colliding.
-			if(refresh_count > cycles_per_refresh) begin
-            //------------------------------------------------------------------------
-            //-- Start the refresh cycle. 
-            //-- This tasks tRFC (66ns), so 6 idle cycles are needed @ 100MHz
-            //------------------------------------------------------------------------
-				state    <= STATE_IDLE_7;
-				command  <= CMD_AUTO_REFRESH;
-				refresh_count <= refresh_count - cycles_per_refresh + 1'd1;
-			end
-		end
+		STATE_IDLE_1: state <= STATE_IDLE;
 
 		STATE_IDLE: begin
 			// Priority is to issue a refresh if one is outstanding
-			if(refresh_count > (cycles_per_refresh<<1)) state <= STATE_IDLE_1;
-			else if(new_rd | new_we) begin
+			if(refresh_needed) begin
+				//------------------------------------------------------------------------
+				//-- Start the refresh cycle. 
+				//-- This tasks tRFC (66ns), so 6 idle cycles are needed @ 100MHz
+				//------------------------------------------------------------------------
+				state <= STATE_IDLE_7;
+				command  <= CMD_AUTO_REFRESH;
+				refresh_count <= 0;
+			end else if(new_rd | new_we) begin
 				new_we   <= 0;
 				new_rd   <= 0;
 				save_addr<= addr;
@@ -230,8 +224,6 @@ always @(posedge clk) begin
 		STATE_READ: begin
 			state       <= STATE_IDLE_5;
 			command     <= CMD_READ;
-			SDRAM_DQ    <= 16'bZZZZZZZZZZZZZZZZ;
-
 			// Schedule reading the data values off the bus
 			data_ready_delay[CAS_LATENCY] <= 1;
 		end
