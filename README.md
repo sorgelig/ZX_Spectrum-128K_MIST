@@ -116,5 +116,5 @@ The format is: Boot (GLUK) + TRDOS + 128 ROM0 + 128 ROM1 + +3 ROM0/1/2/3 + PlusD
 Go to [mist-binaries](https://github.com/mist-devel/mist-binaries/tree/master/cores/spectrum).
 
 ### Source code
-https://github.com/sorgelig/ZX_Spectrum-128K_MIST
-https://github.com/gyurco/ZX_Spectrum-128K_MIST
+- https://github.com/sorgelig/ZX_Spectrum-128K_MIST
+- https://github.com/gyurco/ZX_Spectrum-128K_MIST
