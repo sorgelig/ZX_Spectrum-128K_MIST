@@ -51,12 +51,15 @@ set_output_delay -clock [get_clocks {pll|altpll_component|auto_generated|pll1|cl
 set_multicycle_path -to [get_ports {VGA_*}] -setup 5
 set_multicycle_path -to [get_ports {VGA_*}] -hold 4
 
-set_multicycle_path -from {video:video|video_mixer:video_mixer|scandoubler:scandoubler|Hq2x:Hq2x|*} -setup 6
-set_multicycle_path -from {video:video|video_mixer:video_mixer|scandoubler:scandoubler|Hq2x:Hq2x|*} -hold 5
+#set_multicycle_path -from {video:video|video_mixer:video_mixer|scandoubler:scandoubler|Hq2x:Hq2x|*} -setup 6
+#set_multicycle_path -from {video:video|video_mixer:video_mixer|scandoubler:scandoubler|Hq2x:Hq2x|*} -hold 5
 
 # Effective clock is only half of the system clock, so allow 2 clock cycles for the paths in the T80 cpu
 set_multicycle_path -from {T80pa:cpu|T80:u0|*} -setup 2
 set_multicycle_path -from {T80pa:cpu|T80:u0|*} -hold 1
+
+set_multicycle_path -from {gs:gs|T80pa:cpu|T80:u0|*} -setup 2
+set_multicycle_path -from {gs:gs|T80pa:cpu|T80:u0|*} -hold 1
 
 # The CE is only active in every 2 clocks, so allow 2 clock cycles
 set_multicycle_path -to {smart_tape:tape|tape:tape|addr[*]} -setup 2
@@ -108,6 +111,8 @@ set_multicycle_path -to {u765:u765|i_rpm_time[*][*][*]} -setup 8
 set_multicycle_path -to {u765:u765|i_rpm_time[*][*][*]} -hold 7
 
 # False paths
+
+set_false_path -to {video:video|video_mixer:video_mixer|scandoubler:scandoubler|Hq2x:Hq2x|*}
 
 # Don't bother optimizing sigma_delta_dac
 set_false_path -to {sigma_delta_dac:*}
