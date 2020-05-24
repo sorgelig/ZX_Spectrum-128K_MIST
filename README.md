@@ -18,13 +18,14 @@ Some verilog models from Till Harbaum [Spectrum](https://github.com/mist-devel/m
 - Kempston Mouse and Joystick.
 - Sinclair Joystick I
 - Turbo-Sound interface (dual YM2149 sound chips)
+- General Sound Interface
 - Audio in from real [tape device](http://www.atari-forum.com/viewtopic.php?p=298401#p298401)
 
 **Core requires MiST firmware update to build 2016/06/26 or newer!**
 
 ### Installation:
 Copy the *.rbf file at the root of the SD card. You can rename the file to core.rbf if you want the MiST to load it automatically at startup.
-Copy [spectrum.rom](https://github.com/sorgelig/ZX_Spectrum-128K_MIST/tree/master/releases) file to the root of SD card.
+Copy [spectrum.rom](https://github.com/mist-devel/mist-binaries/tree/master/cores/spectrum/spectrum.rom) file to the root of SD card.
 **Note:** always update spectrum.rom together with core to make sure you're using compatible ROM version. ROM is not always compatible with all releases (but always compatible with latest release), thus you need to keep the ROM if you want to use older version of core.
 
 For PAL mode (RGBS output) you need to put [mist.ini](https://github.com/sorgelig/ZX_Spectrum-128K_MIST/tree/master/releases/mist.ini) file to the root of SD card. Set the option **scandoubler_disable** for desired video output.
@@ -40,7 +41,7 @@ then issue **RANDOMIZE USR 15616**. Use command **RETURN** to leave TR-DOS.
 
 **DSK** +3 disk format. In none- +3 modes, +D tries to mount it, however +3 disk images are not compatible with G+DOS.
 The original +3 disk drive is a 170K single-sided double-density drive, but this core supports 720K double-sided double-density images, too.
-An empty [DSDD image](https://github.com/sorgelig/ZX_Spectrum-128K_MIST/tree/master/releases/dsdd720k.dsk.gz) is great for saving from Multiface.
+An empty [DSDD image](https://github.com/mist-devel/mist-binaries/tree/master/cores/spectrum/dsdd720k.dsk.gz) is great for saving from Multiface.
 ***Note:*** in +3 mode, both the Beta and the +3 disk drive are supported, but only one image can be mounted, so both cannot be used at the same time.
 
 **TAP** is simple tape dump format. It is possible to use normal and **turbo** loading (only if application uses standard loading routines from ROM). To load in turbo mode, you need to choose TAP file in OSD **first** and then start to load app through menu (128K) or by command **LOAD ""** (48K, 128K). To load TAP file in normal mode through internal AUDIO IN loop, you need to start loading through menu or command **first** and then choose TAP file though OSD. If application uses non-standard loader, then TAP file will be played in normal mode automatically. Thus it's safe to always choose the turbo mode. Some applications are split into several parts inside one TAP file. For example DEMO apps where each part is loaded after finish of previous part, or games loading levels by requests. The core pauses the TAP playback after each code part (flag=#255). If application uses standard loader from ROM, then everything will be handled automatically and unnoticeable. If app uses non-standard loader, then there is no way to detect the loading. In this case you need to press **F1 key** to continue/pause TAP playback. Do not press F1 key while data is loading (or you will have to reset and start from beginning). To help operate with TAP (for non-standard loaders) there is special yellow LED signaling:
@@ -101,7 +102,7 @@ When using the Spectrum +2A/3 mode, the Multiface 3 is supported. There's no Gen
 ### ROM Format:
 
 You can create your own ***spectrum.rom***, for example to replace +3 ROMs with +3e.
-The format is: Boot (GLUK) + TRDOS + 128 ROM0 + 128 ROM1 + +3 ROM0/1/2/3 + PlusD + MF128 + MF3 + 48K ROM. Each part is 16k.
+The format is: Boot (GLUK) + TRDOS + 128 ROM0 + 128 ROM1 + +3 ROM0/1/2/3 + PlusD + MF128 + MF3 + 48K ROM + GS(low) + GS(high). Each part is 16k.
 
 ### Special Keys:
 - Ctrl+F11 - warm reset
@@ -112,4 +113,8 @@ The format is: Boot (GLUK) + TRDOS + 128 ROM0 + 128 ROM1 + +3 ROM0/1/2/3 + PlusD
 - F12 - OSD menu
 
 ### Download precompiled binaries and system ROMs:
-Go to [releases](https://github.com/sorgelig/ZX_Spectrum-128K_MIST/tree/master/releases) folder.
+Go to [mist-binaries](https://github.com/mist-devel/mist-binaries/tree/master/cores/spectrum).
+
+### Source code
+- https://github.com/sorgelig/ZX_Spectrum-128K_MIST
+- https://github.com/gyurco/ZX_Spectrum-128K_MIST

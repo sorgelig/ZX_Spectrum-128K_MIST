@@ -41,7 +41,7 @@
 # ========================
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION 13.1
 set_global_assignment -name PROJECT_CREATION_TIME_DATE "21:40:24  MAY 17, 2014"
-set_global_assignment -name LAST_QUARTUS_VERSION 13.1
+set_global_assignment -name LAST_QUARTUS_VERSION "13.1 SP4.26"
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
 set_global_assignment -name SMART_RECOMPILE ON
@@ -172,7 +172,7 @@ set_global_assignment -name ENABLE_SIGNALTAP OFF
 
 # Power Estimation Assignments
 # ============================
-set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
+set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "NO HEAT SINK WITH STILL AIR"
 set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
 
 # Advanced I/O Timing Assignments
@@ -259,8 +259,8 @@ set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to VGA_B[3]
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to VGA_B[2]
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to VGA_B[1]
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to VGA_B[0]
-set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to VGA_HS
-set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to VGA_VS
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_HS
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_VS
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to LED
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to AUDIO_L
 set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to AUDIO_R
@@ -287,7 +287,7 @@ set_global_assignment -name OPTIMIZE_IOC_REGISTER_PLACEMENT_FOR_TIMING "PACK ALL
 
 
 set_global_assignment -name SEED 0
-set_global_assignment -name USE_SIGNALTAP_FILE output_files/tzx.stp
+set_global_assignment -name USE_SIGNALTAP_FILE output_files/gs.stp
 set_global_assignment -name QIP_FILE sys/sys.qip
 set_global_assignment -name QIP_FILE t80/T80.qip
 set_global_assignment -name SYSTEMVERILOG_FILE sdram.sv
@@ -303,5 +303,8 @@ set_global_assignment -name SYSTEMVERILOG_FILE wd1793.sv
 set_global_assignment -name SYSTEMVERILOG_FILE u765.sv
 set_global_assignment -name SYSTEMVERILOG_FILE zxspectrum.sv
 set_global_assignment -name VHDL_FILE tzxplayer.vhd
+set_global_assignment -name VERILOG_FILE gs.v
 set_global_assignment -name SIGNALTAP_FILE output_files/tzx.stp
+set_global_assignment -name SIGNALTAP_FILE output_files/sdram.stp
+set_global_assignment -name SIGNALTAP_FILE output_files/gs.stp
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

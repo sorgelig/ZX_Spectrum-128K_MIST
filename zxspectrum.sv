@@ -76,6 +76,7 @@ localparam CONF_STR = {
 	"OAC,Memory,Standard 128K,Pentagon 1024K,Profi 1024K,Standard 48K,+2A/+3;",
 	"ODE,Features,ULA+ & Timex,ULA+,Timex,None;",
 	"OHI,MMC Card,Off,divMMC,ZXMMC;",
+	"OKL,General Sound,512KB,1MB,2MB,Disabled;",
 	"T0,Reset;",
 	"V,v3.40.",`BUILD_DATE
 };
@@ -252,6 +253,11 @@ wire        io_wr = ~nIORQ & ~nWR & nM1;
 wire        io_rd = ~nIORQ & ~nRD & nM1;
 wire        m1    = ~nM1 & ~nMREQ;
 
+// for edge detection
+reg         old_wr;
+reg         old_rd;
+reg         old_m1;
+
 wire[211:0]	cpu_reg;  // IFF2, IFF1, IM, IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
 wire [15:0] reg_DE  = cpu_reg[111:96];
 wire  [7:0] reg_A   = cpu_reg[7:0];
@@ -281,18 +287,18 @@ T80pa cpu
 );
 
 always_comb begin
-	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel | fdd_sel2 | plus3_fdd, mf3_port, mmc_sel, addr[5:0]==8'h1F, portBF, addr[0], psg_enable, ulap_sel})
-		'b00XXXXXXXXX: cpu_din = ram_dout;
+	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel | fdd_sel2 | plus3_fdd, mf3_port, addr[5:0]==8'h1F, portBF, gs_sel, psg_enable, ulap_sel, addr[0]})
 		'b01XXXXXXXXX: cpu_din = tape_dout;
+		'b00XXXXXXXXX: cpu_din = ram_dout;
 		'b1X01XXXXXXX: cpu_din = fdd_dout;
 		'b1X001XXXXXX: cpu_din = (addr[14:13] == 2'b11 ? page_reg : page_reg_plus3);
-		'b1X0001XXXXX: cpu_din = mmc_dout;
-		'b1X00001XXXX: cpu_din = mouse_sel ? mouse_data : {2'b00, joy0[5:0]};
-		'b1X000001XXX: cpu_din = {page_scr_copy, 7'b1111111};
-		'b1X00000011X: cpu_din = (addr[14] ? sound_data : 8'hFF);
-		'b1X000000101: cpu_din = ulap_dout;
-		'b1X000000100: cpu_din = port_ff;
-		'b1X0000000XX: cpu_din = {1'b1, ~tape_in, 1'b1, key_data[4:0] & ({5{addr[12]}} | ~{joy1[1:0], joy1[2], joy1[3], joy1[4]})};
+		'b1X0001XXXXX: cpu_din = mouse_sel ? mouse_data : {2'b00, joy0[5:0]};
+		'b1X00001XXXX: cpu_din = {page_scr_copy, 7'b1111111};
+		'b1X000001XXX: cpu_din = gs_dout;
+		'b1X0000001XX: cpu_din = (addr[14] ? sound_data : 8'hFF);
+		'b1X00000001X: cpu_din = ulap_dout;
+		'b1X000000001: cpu_din = port_ff;
+		'b1X000000000: cpu_din = {1'b1, ~tape_in, 1'b1, key_data[4:0] & ({5{addr[12]}} | ~{joy1[1:0], joy1[2], joy1[3], joy1[4]})};
 		'b1X1XXXXXXXX: cpu_din = 8'hFF;
 	endcase
 end
@@ -320,7 +326,7 @@ always @(posedge clk_sys) begin
 
 	reset <= buttons[1] | status[0] | cold_reset | warm_reset | shdw_reset | Fn[10];
 
-	if(reset | ~Fn[11] | (m1 & (addr == 'h66))) NMI <= 0;
+	if(reset | ~Fn[11]) NMI <= 0;
 	else if(~old_F11 & Fn[11] & (mod[2:1] == 0)) NMI <= 1;
 
 	cold_reset_btn <= (mod[2:1] == 1) & Fn[11];
@@ -328,10 +334,14 @@ always @(posedge clk_sys) begin
 	shdw_reset_btn <= (mod[2:1] == 3) & Fn[11];
 end
 
+always @(posedge clk_sys) begin
+	old_rd <= io_rd;
+	old_wr <= io_wr;
+	old_m1 <= m1;
+end
 
 //////////////////   MEMORY   //////////////////
 wire        dma = (reset | ~nBUSACK) & ~nBUSRQ;
-reg  [24:0] sdram_addr;
 reg  [20:0] ram_addr;
 reg   [7:0] ram_din;
 reg         ram_we;
@@ -341,26 +351,20 @@ wire        ram_ready;
 
 always_comb begin
 	casex({page_special, addr[15:14]})
-		'b0_00: ram_addr = { 3'b101, page_rom,    addr[13:0]}; //ROM
-		'b0_01: ram_addr = {        3'd5,         addr[13:0]}; //Non-special page modes
-		'b0_10: ram_addr = {        3'd2,         addr[13:0]};
-		'b0_11: ram_addr = {    page_ram,         addr[13:0]};
-		'b1_00: ram_addr = { |page_reg_plus3[2:1],                      2'b00, addr[13:0]}; //Special page modes
-		'b1_01: ram_addr = { |page_reg_plus3[2:1], &page_reg_plus3[2:1], 1'b1, addr[13:0]};
-		'b1_10: ram_addr = { |page_reg_plus3[2:1],                      2'b10, addr[13:0]};
-		'b1_11: ram_addr = { ~page_reg_plus3[2] & page_reg_plus3[1],    2'b11, addr[13:0]};
+		'b0_00: ram_addr = { 3'b101, page_rom, addr[13:0] }; //ROM
+		'b0_01: ram_addr = {   4'd0, 3'd5,     addr[13:0] }; //Non-special page modes
+		'b0_10: ram_addr = {   4'd0, 3'd2,     addr[13:0] };
+		'b0_11: ram_addr = {   1'b0, page_ram, addr[13:0] };
+		'b1_00: ram_addr = {   4'd0,                       |page_reg_plus3[2:1], 2'b00, addr[13:0] }; //Special page modes
+		'b1_01: ram_addr = {   4'd0, |page_reg_plus3[2:1], &page_reg_plus3[2:1],  1'b1, addr[13:0] };
+		'b1_10: ram_addr = {   4'd0,                       |page_reg_plus3[2:1], 2'b10, addr[13:0] };
+		'b1_11: ram_addr = {   4'd0,     ~page_reg_plus3[2] & page_reg_plus3[1], 2'b11, addr[13:0] };
 	endcase
 
 	casex({dma, tape_req})
-		'b1X: sdram_addr = ioctl_addr;
-		'b01: sdram_addr = tape_addr;
-		'b00: sdram_addr = ram_addr;
-	endcase;
-
-	casex({dma, tape_req})
-		'b1X: ram_din = ioctl_dout;
-		'b01: ram_din = 0;
-		'b00: ram_din = cpu_dout;
+		'b1X: ram_din <= ioctl_dout;
+		'b01: ram_din <= 0;
+		'b00: ram_din <= cpu_dout;
 	endcase
 
 	casex({dma, tape_req})
@@ -376,20 +380,121 @@ always_comb begin
 	endcase
 end
 
+
 sdram ram
 (
 	.*,
-	.init(~locked),
+	.init_n(locked),
 	.clk(clk_sys),
-	.dout(ram_dout),
-	.din (ram_din),
-	.addr(sdram_addr),
-	.wtbt(0),
-	.we(ram_we),
-	.rd(ram_rd),
-	.ready(ram_ready)
+
+	// port1 is CPU/tape
+	.port1_req(sdram_req),
+	.port1_a(sdram_addr[23:1]),
+	.port1_ds(sdram_we ? {sdram_addr[0], ~sdram_addr[0]} : 2'b11),
+	.port1_d({sdram_din, sdram_din}),
+	.port1_q(sdram_dout),
+	.port1_we(sdram_we),
+	.port1_ack(sdram_ack),
+
+	// port 2 is General Sound CPU
+	.port2_req(gs_sdram_req),
+	.port2_a(gs_sdram_addr[23:1]),
+	.port2_ds(gs_sdram_we ? {gs_sdram_addr[0], ~gs_sdram_addr[0]} : 2'b11),
+	.port2_q(gs_sdram_dout),
+	.port2_d({gs_sdram_din, gs_sdram_din}),
+	.port2_we(gs_sdram_we),
+	.port2_ack(gs_sdram_ack)
 );
 
+assign SDRAM_CKE = 1;
+
+// CPU/tape port control
+reg  [24:0] sdram_addr;
+wire [15:0] sdram_dout;
+reg   [7:0] sdram_din;
+wire        sdram_ack;
+reg         sdram_req;
+reg         sdram_we;
+
+reg         ram_rd_old;
+reg         ram_rd_old2; // use the delayed signal to wait for mf128_mem, plusd_mem, etc...
+reg         ram_we_old;
+wire        new_ram_req = (~ram_rd_old2 & ram_rd_old) || (~ram_we_old & ram_we);
+
+always @(posedge clk_sys) begin
+
+	ram_rd_old  <= ram_rd;
+	ram_rd_old2 <= ram_rd_old;
+	ram_we_old <= ram_we;
+
+	if (new_ram_req) begin
+
+		sdram_req <= ~sdram_req;
+		sdram_we <= ram_we;
+		sdram_din <= ram_din;
+
+		casex({dma, tape_req})
+			'b1X: sdram_addr <= ioctl_addr;
+			'b01: sdram_addr <= tape_addr;
+			'b00: sdram_addr <= ram_addr;
+		endcase;
+
+	end
+end
+
+assign ram_dout = sdram_addr[0] ? sdram_dout[15:8] : sdram_dout[7:0];
+assign ram_ready = (sdram_ack == sdram_req) & ~new_ram_req;
+
+// GS port control
+wire [20:0] gs_mem_addr;
+wire  [7:0] gs_mem_dout;
+wire  [7:0] gs_mem_din;
+wire        gs_mem_rd;
+wire        gs_mem_wr;
+wire        gs_mem_ready;
+reg   [7:0] gs_mem_mask;
+
+always_comb begin
+	gs_mem_mask = 0;
+	case(status[21:20])
+		0: if(gs_mem_addr[20:19]) gs_mem_mask = 8'hFF; // 512K
+		1: if(gs_mem_addr[20])    gs_mem_mask = 8'hFF; // 1024K
+		2,3:                      gs_mem_mask = 0;
+	endcase
+end
+
+reg  [24:0] gs_sdram_addr;
+wire [15:0] gs_sdram_dout;
+reg   [7:0] gs_sdram_din;
+wire        gs_sdram_ack;
+reg         gs_sdram_req;
+reg         gs_sdram_we;
+
+wire        gs_rom_we = ioctl_wr && (ioctl_index == 0);
+reg         gs_mem_rd_old;
+reg         gs_mem_wr_old;
+wire        new_gs_mem_req = (~gs_mem_rd_old & gs_mem_rd) || (~gs_mem_wr_old & gs_mem_wr) || gs_rom_we;
+
+always @(posedge clk_sys) begin
+
+	gs_mem_rd_old <= gs_mem_rd;
+	gs_mem_wr_old <= gs_mem_wr;
+
+	if (new_gs_mem_req) begin
+		// don't issue a new request if a read followed by a read and the current word address is the same as the previous
+		if (gs_sdram_we | gs_rom_we | gs_mem_wr | gs_sdram_addr[20:1] != gs_mem_addr[20:1]) begin
+			gs_sdram_req <= ~gs_sdram_req;
+			gs_sdram_we <= gs_rom_we | gs_mem_wr;
+			gs_sdram_din <= gs_rom_we ? ioctl_dout : gs_mem_din;
+		end
+		gs_sdram_addr <= gs_rom_we ? (ioctl_addr - 24'h180000) : gs_mem_addr;
+	end
+end
+
+assign gs_mem_dout = gs_sdram_addr[0] ? gs_sdram_dout[15:8] : gs_sdram_dout[7:0];
+assign gs_mem_ready = (gs_sdram_ack == gs_sdram_req) & ~new_gs_mem_req;
+
+// VRAM
 wire vram_sel = (ram_addr[20:16] == 1) & ram_addr[14] & ~dma & ~tape_req;
 vram vram
 (
@@ -437,12 +542,9 @@ always_comb begin
 end
 
 always @(posedge clk_sys) begin
-	reg old_wr, old_m1, old_reset;
+	reg old_reset;
 	reg [2:0] rmod;
 
-	old_wr <= io_wr;
-	old_m1 <= m1;
-	
 	old_reset <= reset;
 	if(~old_reset & reset) rmod <= mod;
 
@@ -532,19 +634,64 @@ turbosound turbosound
 	.IOB_in(0)
 );
 
-sigma_delta_dac #(9) dac_l
+wire  [7:0] gs_dout;
+wire [14:0] gs_l, gs_r;
+wire gs_sel = (addr[7:0] ==? 'b1011?011) & ~&status[21:20];
+
+// ~12 MHz (112MHz/10) clock enable for GS card
+reg  gs_ce_p, gs_ce_n;
+always @(posedge clk_sys) begin
+	reg [3:0] gs_ce_count;
+
+	if(reset) begin
+		gs_ce_count <= 0;
+	end else begin
+		gs_ce_count <= gs_ce_count + 1'd1;
+		if (gs_ce_count == 4'd9) gs_ce_count <= 0;
+		gs_ce_n <= gs_ce_count == 0;
+		gs_ce_p <= gs_ce_count == 8; // strech the negative phase to allow more time to RAM in M1 cycle
+	end
+end
+
+// General Sound
+gs gs
+(
+	.RESET(reset),
+	.CLK(clk_sys),
+	.CE_N(gs_ce_n),
+	.CE_P(gs_ce_p),
+
+	.A(addr[3]),
+	.DI(cpu_dout),
+	.DO(gs_dout),
+	.CS_n(~nM1 | nIORQ | ~gs_sel),
+	.WR_n(nWR),
+	.RD_n(nRD),
+
+	.MEM_ADDR(gs_mem_addr),
+	.MEM_DI(gs_mem_din),
+	.MEM_DO(gs_mem_dout | gs_mem_mask),
+	.MEM_RD(gs_mem_rd),
+	.MEM_WR(gs_mem_wr),
+	.MEM_WAIT(~gs_mem_ready),
+
+	.OUTL(gs_l),
+	.OUTR(gs_r)
+);
+
+sigma_delta_dac #(14) dac_l
 (
 	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin({1'b0, psg_ch_a, 1'b0} + {2'b00, psg_ch_b} + {2'b00, ear_out, mic_out, tape_in, 5'b00000}),
+	.DACin({~gs_l[14], gs_l[13:0]} + {1'b0, psg_ch_a, 4'd0} + {2'b00, psg_ch_b, 3'd0} + {2'b00, ear_out, mic_out, tape_in, 8'd0}),
 	.DACout(AUDIO_L)
 );
 
-sigma_delta_dac #(9) dac_r
+sigma_delta_dac #(14) dac_r
 (
 	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin({1'b0, psg_ch_c, 1'b0} + {2'b00, psg_ch_b} + {2'b00, ear_out, mic_out, tape_in, 5'b00000}),
+	.DACin({~gs_r[14], gs_r[13:0]} + {1'b0, psg_ch_c, 4'd0} + {2'b00, psg_ch_b, 3'd0} + {2'b00, ear_out, mic_out, tape_in, 8'd0}),
 	.DACout(AUDIO_R)
 );
 
@@ -598,10 +745,7 @@ wire        mf128_port = ~addr[6] & addr[5] & addr[4] & addr[1];
 wire        mf3_port = mf128_port & ~addr[7] & (addr[12:8] == 'h1f) & plus3 & mf128_en;
 
 always @(posedge clk_sys) begin
-	reg old_m1, old_rd, old_wr;
 
-	old_rd <= io_rd;
-	old_wr <= io_wr;
 	if(reset) {mf128_mem, mf128_en} <= 0;
 	else if(~old_rd & io_rd) begin
 		//page in/out for port IN
@@ -611,7 +755,6 @@ always @(posedge clk_sys) begin
 		if(mf128_port) mf128_en <= addr[7] & mf128_en;
 	end
 
-	old_m1 <= m1;
 	if(~old_m1 & m1 & mod[0] & (addr == 'h66)) {mf128_mem, mf128_en} <= 2'b11;
 end
 
@@ -690,9 +833,7 @@ wire        plusd_stealth = 1;
 wire        portBF = mf128_port & addr[7] & (mf128_mem | plusd_mem);
 
 always @(posedge clk_sys) begin
-	reg old_wr, old_rd;
 	reg old_mounted;
-	reg old_m1;
 
 	if(cold_reset) {plus3_fdd_ready, fdd_ready, plusd_en} <= 0;
 	if(reset)      {plusd_mem, trdos_en} <= 0;
@@ -706,9 +847,6 @@ always @(posedge clk_sys) begin
 		plus3_fdd_ready <= plus3 & (ioctl_index[7:6] == 2);
 	end
 
-	old_rd <= io_rd;
-	old_wr <= io_wr;
-	old_m1 <= m1;
 	psg_reset <= 0;
 
 	if(plusd_en) begin
