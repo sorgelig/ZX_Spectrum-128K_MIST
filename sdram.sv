@@ -37,14 +37,15 @@ module sdram (
 	// cpu/chipset interface
 	input             init_n,     // init signal after FPGA config to initialize RAM
 	input             clk,        // sdram clock
+	input             clkref,
 
 	input             port1_req,
-	output reg        port1_ack,
+	output            port1_ack,
 	input             port1_we,
 	input      [23:1] port1_a,
 	input       [1:0] port1_ds,
 	input      [15:0] port1_d,
-	output reg [15:0] port1_q,
+	output     [15:0] port1_q,
 
 	input             port2_req,
 	output            port2_ack,
@@ -100,7 +101,8 @@ reg [2:0] t;
 always @(posedge clk) begin
 	t <= t + 1'd1;
 	if (t == STATE_LAST) t <= STATE_RAS0;
-	if (t == STATE_RAS1 && !oe_latch[0] && !we_latch[0] && !need_refresh && next_port[1] == PORT_NONE) t <= STATE_RAS0;
+	//if (t == STATE_RAS1 && !oe_latch[0] && !we_latch[0] && !need_refresh && next_port[1] == PORT_NONE) t <= STATE_RAS0;
+	if (clkref) t <= 3'd6;
 end
 
 // ---------------------------------------------------------------------
@@ -157,6 +159,9 @@ localparam PORT_REQ   = 1'd1;
 
 reg  [1:0] next_port;
 reg  [1:0] port;
+
+reg        port1_ack_reg;
+reg [15:0] port1_q_reg;
 
 reg        port2_ack_reg;
 reg [15:0] port2_q_reg;
@@ -267,7 +272,7 @@ always @(posedge clk) begin
 			{ SDRAM_DQMH, SDRAM_DQML } <= ~ds[0];
 			if (we_latch[0]) begin
 				SDRAM_DQ <= din_latch[0];
-				port1_ack <= port1_req;
+				port1_ack_reg <= port1_req;
 			end
 			SDRAM_A <= { 4'b0010, addr_latch[0][9:1] };  // auto precharge
 			SDRAM_BA <= addr_latch[0][24:23];
@@ -288,8 +293,8 @@ always @(posedge clk) begin
 		if(t == STATE_DS0 && oe_latch[0])	{ SDRAM_DQMH, SDRAM_DQML } <= ~ds[0];
 
 		if(t == STATE_READ0 && oe_latch[0]) begin
-			port1_q <= sd_din;
-			port1_ack <= port1_req;
+			port1_q_reg <= sd_din;
+			port1_ack_reg <= port1_req;
 		end
 
 		if(t == STATE_DS1 && oe_latch[1])	{ SDRAM_DQMH, SDRAM_DQML } <= ~ds[1];
@@ -300,6 +305,9 @@ always @(posedge clk) begin
 		end
 	end
 end
+
+assign port1_q   = (t == STATE_READ0 && oe_latch[0]) ? sd_din : port1_q_reg;
+assign port1_ack = (t == STATE_READ0 && oe_latch[0]) ? port1_req : port1_ack_reg;
 
 assign port2_q   = (t == STATE_READ1 && oe_latch[1]) ? sd_din : port2_q_reg;
 assign port2_ack = (t == STATE_READ1 && oe_latch[1]) ? port2_req : port2_ack_reg;

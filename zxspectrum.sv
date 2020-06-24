@@ -98,6 +98,7 @@ reg  ce_psg;  //1.75MHz
 reg  ce_7mp;
 reg  ce_7mn;
 reg  ce_28m;
+reg  ce_14m;
 
 reg  pause;
 reg  cpu_en = 1;
@@ -120,6 +121,7 @@ always @(posedge clk_sys) begin
 	counter <=  counter + 1'd1;
 
 	ce_28m  <= !counter[1:0];
+	ce_14m  <= !counter[2:0];
 	ce_7mp  <= !counter[3] & !counter[2:0];
 	ce_7mn  <=  counter[3] & !counter[2:0];
 	ce_psg  <= !counter[5:0] & ~pause;
@@ -136,11 +138,11 @@ always @(posedge clk_sys) begin
 	if(reset) pause <= 0;
 
 	if(!mod) begin
-		if(~old_Fn[4] & Fn[4]) turbo_key <= 5'b11111;
-		if(~old_Fn[5] & Fn[5]) turbo_key <= 5'b01111;
-		if(~old_Fn[6] & Fn[6]) turbo_key <= 5'b00111;
-		if(~old_Fn[7] & Fn[7]) turbo_key <= 5'b00011;
-		if(~old_Fn[8] & Fn[8]) turbo_key <= 5'b00001;
+		if(~old_Fn[4] & Fn[4]) turbo_key <= 5'b11111; //3.5 MHz
+		if(~old_Fn[5] & Fn[5]) turbo_key <= 5'b01111; //  7 Mhz
+		if(~old_Fn[6] & Fn[6]) turbo_key <= 5'b00111; // 14 MHz
+		if(~old_Fn[7] & Fn[7]) turbo_key <= 5'b00011; // 28 MHz
+		if(~old_Fn[8] & Fn[8]) turbo_key <= 5'b00001; // 56 MHz
 		if(~old_Fn[9] & Fn[9]) pause <= ~pause;
 	end
 end
@@ -386,6 +388,7 @@ sdram ram
 	.*,
 	.init_n(locked),
 	.clk(clk_sys),
+	.clkref(ce_14m),
 
 	// port1 is CPU/tape
 	.port1_req(sdram_req),
