@@ -641,20 +641,28 @@ wire  [7:0] gs_dout;
 wire [14:0] gs_l, gs_r;
 wire gs_sel = (addr[7:0] ==? 'b1011?011) & ~&status[21:20];
 
-// ~12 MHz (112MHz/10) clock enable for GS card
-reg  gs_ce_p, gs_ce_n;
+reg [3:0] gs_ce_count;
+
 always @(posedge clk_sys) begin
-	reg [3:0] gs_ce_count;
+	reg gs_no_wait;
 
 	if(reset) begin
 		gs_ce_count <= 0;
+		gs_no_wait <= 1;
 	end else begin
-		gs_ce_count <= gs_ce_count + 1'd1;
-		if (gs_ce_count == 4'd9) gs_ce_count <= 0;
-		gs_ce_n <= gs_ce_count == 0;
-		gs_ce_p <= gs_ce_count == 8; // strech the negative phase to allow more time to RAM in M1 cycle
+		if (gs_ce_p) gs_no_wait <= 0;
+		if (gs_mem_ready) gs_no_wait <= 1;
+		if (gs_ce_count == 4'd9) begin
+			if (gs_mem_ready | gs_no_wait) gs_ce_count <= 0;
+		end else
+			gs_ce_count <= gs_ce_count + 1'd1;
+
 	end
 end
+
+// ~12 MHz (112MHz/10) clock enable for GS card
+wire gs_ce_p = gs_ce_count == 0;
+wire gs_ce_n = gs_ce_count == 4;
 
 // General Sound
 gs gs
