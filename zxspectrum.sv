@@ -694,7 +694,7 @@ sigma_delta_dac #(14) dac_l
 (
 	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin({~gs_l[14], gs_l[13:0]} + {1'b0, psg_ch_a, 4'd0} + {2'b00, psg_ch_b, 3'd0} + {2'b00, ear_out, mic_out, tape_in, 8'd0}),
+	.DACin({~gs_l[14], gs_l[13:0]} + {2'b00, psg_ch_a, 5'd0} + {3'b000, psg_ch_b, 4'd0} + {2'b00, ear_out, mic_out, tape_in, 10'd0}),
 	.DACout(AUDIO_L)
 );
 
@@ -702,7 +702,7 @@ sigma_delta_dac #(14) dac_r
 (
 	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin({~gs_r[14], gs_r[13:0]} + {1'b0, psg_ch_c, 4'd0} + {2'b00, psg_ch_b, 3'd0} + {2'b00, ear_out, mic_out, tape_in, 8'd0}),
+	.DACin({~gs_r[14], gs_r[13:0]} + {2'b00, psg_ch_c, 5'd0} + {3'b000, psg_ch_b, 4'd0} + {2'b00, ear_out, mic_out, tape_in, 10'd0}),
 	.DACout(AUDIO_R)
 );
 
