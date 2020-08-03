@@ -1,0 +1,3 @@
+[submodule "T80"]
+	path = T80
+	url = https://github.com/mist-devel/T80.git

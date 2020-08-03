@@ -289,7 +289,7 @@ set_global_assignment -name OPTIMIZE_IOC_REGISTER_PLACEMENT_FOR_TIMING "PACK ALL
 set_global_assignment -name SEED 0
 set_global_assignment -name USE_SIGNALTAP_FILE output_files/gs.stp
 set_global_assignment -name QIP_FILE sys/sys.qip
-set_global_assignment -name QIP_FILE t80/T80.qip
+set_global_assignment -name QIP_FILE T80/T80.qip
 set_global_assignment -name SYSTEMVERILOG_FILE sdram.sv
 set_global_assignment -name SYSTEMVERILOG_FILE turbosound.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ym2149.sv
