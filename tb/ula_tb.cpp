@@ -51,13 +51,16 @@ int main(int argc, char **argv) {
 	tb->trace(trace, 99);
 	trace->open("ula.vcd");
 
-	tb->reset = 1;
 	tick(1);
 	tick(0);
+	tb->reset = 1;
+	tb->mZX = 1;
+	tb->m128 = 0;
+	tb->border_color = 1;
 	tick(1);
 	tick(0);
 
-	tb->reset = 1;
+	tb->reset = 0;
 
 	FILE *file=fopen("video.rgb", "wb");
 	unsigned short rgb;

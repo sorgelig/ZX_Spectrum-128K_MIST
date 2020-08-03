@@ -729,7 +729,7 @@ wire       HSync, VSync, HBlank;
 wire       ulap_ena, ulap_mono, mode512;
 wire       ulap_avail = ~status[14] & ~trdos_en;
 wire       tmx_avail = ~status[13] & ~trdos_en;
-
+wire       snow_ena = &turbo & ~plus3;
 ULA ULA(.*, .din(cpu_dout), .page_ram(page_ram[2:0]));
 
 video_mixer #(.LINE_LENGTH(896), .HALF_DEPTH(1)) video_mixer

@@ -31,8 +31,8 @@ module ULA
 	input         clk_sys,	// master clock
 	input         ce_7mp,
 	input         ce_7mn,
-	output reg    ce_cpu_sp,
-	output reg    ce_cpu_sn,
+	output        ce_cpu_sp,
+	output        ce_cpu_sn,
 
 	// CPU interfacing
 	input  [15:0] addr,
@@ -60,6 +60,7 @@ module ULA
 	output reg    mode512,
 
 	// Misc. signals
+	input         snow_ena,
 	input         mZX,
 	input         m128,
 	input         page_scr,
@@ -80,64 +81,83 @@ assign nINT      = ~INT;
 assign port_ff   = tmx_using_ff ? {2'b00, tmx_cfg} : mZX ? ff_data : 8'hFF;
 
 // Pixel clock
-reg [8:0] hc = 0;
-reg [8:0] vc = 0;
+reg  [8:0] hc = 0;
+reg  [8:0] vc_next;
+reg  [8:0] vc = 0;
+reg  [8:0] hc_next;
+
+wire       Border_next = ((vc_next[7] & vc_next[6]) | vc_next[8] | hc_next[8]);
+reg        Border;
+reg  [4:0] FlashCnt_next;
+reg  [4:0] FlashCnt;
+
+always @(*) begin
+	vc_next = vc;
+	FlashCnt_next = FlashCnt;
+
+	if (hc==((mZX && m128) ? 455 : 447)) begin
+		hc_next = 0;
+		if (vc == (!mZX ? 319 : m128 ? 310 : 311)) begin
+			vc_next = 0;
+			FlashCnt_next = FlashCnt + 1'd1;
+		end else begin
+			vc_next = vc + 1'd1;
+		end
+	end else begin
+		hc_next = hc + 1'd1;
+	end
+end
 
 always @(posedge clk_sys) begin
 	reg m512;
 
-	if(ce_7mp) begin
-		if((vc<192) || (hc<256)) m512 <= (m512 | tmx_hi);
-		if (hc==((mZX && m128) ? 455 : 447)) begin
-			hc <= 0;
-			if (vc == (!mZX ? 319 : m128 ? 310 : 311)) begin 
-				vc <= 0;
-				FlashCnt <= FlashCnt + 1'd1;
-			end else begin
-				vc <= vc + 1'd1;
-			end
-			if(mZX ? (vc == 240) : (vc == 248)) begin
+	if(ce_7mn) begin
+		vc <= vc_next;
+		hc <= hc_next;
+		Border <= Border_next;
+		FlashCnt <= FlashCnt_next;
+
+		if((vc_next<192) || (hc_next<256)) m512 <= (m512 | tmx_hi);
+		if (hc_next == 0) begin
+			if(mZX ? (vc_next == 240) : (vc_next == 248)) begin
 				mode512 <= m512;
 				m512 <= 0;
 			end
-		end else begin
-			hc <= hc + 1'd1;
 		end
 		hiSRegister <= {hiSRegister[14:0],1'b0};
-	end
-	if(ce_7mn) begin
+
 		if(!mZX) begin
-			if (hc == 312) HBlank <= 1;
-				else if (hc == 420) HBlank <= 0;
-			if (hc == 338) HSync <= 1;
-				else if (hc == 370) HSync <= 0;
+			if (hc_next == 312) HBlank <= 1;
+				else if (hc_next == 420) HBlank <= 0;
+			if (hc_next == 338) HSync <= 1;
+				else if (hc_next == 370) HSync <= 0;
 		end else if(m128) begin
-			if (hc == 312) HBlank <= 1;
-				else if (hc == 424) HBlank <= 0;
-			if (hc == 340) HSync <= 1;         //ULA 6C
-				else if (hc == 372) HSync <= 0; //ULA 6C
+			if (hc_next == 312) HBlank <= 1;
+				else if (hc_next == 424) HBlank <= 0;
+			if (hc_next == 340) HSync <= 1;         //ULA 6C
+				else if (hc_next == 372) HSync <= 0; //ULA 6C
 		end else begin
-			if (hc == 312) HBlank <= 1;
-				else if (hc == 416) HBlank <= 0;
-			if (hc == 336) HSync <= 1;         //ULA 5C
-				else if (hc == 368) HSync <= 0; //ULA 5C
+			if (hc_next == 312) HBlank <= 1;
+				else if (hc_next == 416) HBlank <= 0;
+			if (hc_next == 336) HSync <= 1;         //ULA 5C
+				else if (hc_next == 368) HSync <= 0; //ULA 5C
 		end
 
 		if(mZX) begin
-			if(vc == 240) VSync <= 1;
-				else if (vc == 244) VSync <= 0;
+			if(vc_next == 240) VSync <= 1;
+				else if (vc_next == 244) VSync <= 0;
 		end else begin
-			if(vc == 248) VSync <= 1;
-				else if (vc == 256) VSync <= 0;
+			if(vc_next == 248) VSync <= 1;
+				else if (vc_next == 256) VSync <= 0;
 		end
 
-		if( mZX && (vc == 248) && (hc == (m128 ? 8 : 4))) INT <= 1;
-		if(!mZX && (vc == 239) && (hc == 326)) INT <= 1;
+		if( mZX && (vc_next == 248) && (hc_next == (m128 ? 8 : 4))) INT <= 1;
+		if(!mZX && (vc_next == 239) && (hc_next == 326)) INT <= 1;
 
 		if(INT)  INTCnt <= INTCnt + 1'd1;
 		if(INTCnt == 0) INT <= 0;
 
-		if ((hc[3:0] == 4) || (hc[3:0] == 12)) begin
+		if ((hc_next[3:0] == 4) || (hc_next[3:0] == 12)) begin
 			SRegister <= VidEN ? bits : 8'd0;
 			hiSRegister <= VidEN ? {bits, attr} : 16'd0;
 			AttrOut <= tmx_hi ? hiattr : VidEN ? attr : {2'b00,border_color,border_color};
@@ -147,29 +167,32 @@ always @(posedge clk_sys) begin
 		end
 
 		//1T update for border in Pentagon mode
-		if(!mZX & ((hc<12) | (hc>267) | (vc>=192))) AttrOut <= tmx_hi ? hiattr : {2'b00,border_color,border_color};
+		if(!mZX & ((hc_next<12) | (hc_next>267) | (vc>=192))) AttrOut <= tmx_hi ? hiattr : {2'b00,border_color,border_color};
 
-		if(hc[3]) VidEN <= ~Border;
+		if(hc_next[3]) VidEN <= ~Border;
 	
-		if(!Border) begin
-			casez({tmx_cfg[1],hc[3:0]})
+		if(!Border_next) begin
+			casez({tmx_cfg[1],hc_next[3:0]})
 				5'b01000,
-				5'b01100: vaddr <= {stdpage ? page_scr : tmx_cfg[2],tmx_cfg[0],vc[7:6],vc[2:0],vc[5:3],hc[7:4], hc[2]};
+				5'b01100: vaddr <= {stdpage ? page_scr : tmx_cfg[2],tmx_cfg[0],vc[7:6],vc[2:0],vc[5:3],hc_next[7:4], hc_next[2]};
 				5'b11000,
-				5'b11100: vaddr <= {stdpage ? page_scr : tmx_cfg[0],1'b0,vc[7:6],vc[2:0],vc[5:3],hc[7:4], hc[2]};
+				5'b11100: vaddr <= {stdpage ? page_scr : tmx_cfg[0],1'b0,vc[7:6],vc[2:0],vc[5:3],hc_next[7:4], hc_next[2]};
 				5'b?1001,
 				5'b?1101: begin bits <= vram_dout; ff_data <= vram_dout; end
 				5'b01010,
-				5'b01110: vaddr <= {stdpage ? page_scr : tmx_cfg[2],tmx_cfg[0],3'b110,vc[7:3],hc[7:4],hc[2]};
+				5'b01110: vaddr <= {stdpage ? page_scr : tmx_cfg[2],tmx_cfg[0],3'b110,vc[7:3],hc_next[7:4],hc_next[2]};
 				5'b11010,
-				5'b11110: vaddr <= {stdpage ? page_scr : tmx_cfg[0],1'b1,vc[7:6],vc[2:0],vc[5:3],hc[7:4], hc[2]};
+				5'b11110: vaddr <= {stdpage ? page_scr : tmx_cfg[0],1'b1,vc[7:6],vc[2:0],vc[5:3],hc_next[7:4], hc_next[2]};
 				5'b?1011,
 				5'b?1111: begin attr <= vram_dout; ff_data <= vram_dout; end
 				default: ;
 			endcase
+
+			// Snow effect
+			if (mZX & ~nMREQ & contendAddr & snow_ena) vaddr[6:0] <= addr[6:0];
 		end
 
-		if (hc[3:0] == 1) ff_data <= 255;
+		if (hc_next[3:0] == 1) ff_data <= 255;
 	end
 end
 
@@ -186,9 +209,7 @@ reg [15:0] hiSRegister;
 reg [14:0] vaddr;
 
 reg  [7:0] AttrOut;
-reg  [4:0] FlashCnt;
 
-wire       Border = ((vc[7] & vc[6]) | vc[8] | hc[8]);
 reg        VidEN = 0;
 
 reg  [7:0] bits;
@@ -215,25 +236,24 @@ reg  CPUClk;
 reg  ioreqtw3;
 reg  mreqt23;
 
-wire ioreq_n    = (addr[0] & ~ulap_acc) | nIORQ;
-wire ulaContend = (hc[2] | hc[3]) & ~Border & CPUClk & ioreqtw3;
-wire memContend = ioreq_n & mreqt23 & ((addr[15:14] == 2'b01) | (m128 & (addr[15:14] == 2'b11) & page_ram[0]));
-wire ioContend  = ~ioreq_n;
-wire next_clk   = ~hc[0] | (mZX & ulaContend & (memContend | ioContend));
+wire ioreq_n      = (addr[0] & ~ulap_acc) | nIORQ;
+wire clkwait_next = hc_next[2] | hc_next[3];
+wire ulaContend   = clkwait_next & ~Border_next & CPUClk & ioreqtw3;
+wire contendAddr  = ((addr[15:14] == 2'b01) | (m128 & (addr[15:14] == 2'b11) & page_ram[0]));
+wire memContend   = ioreq_n & mreqt23 & contendAddr;
+wire ioContend    = ~ioreq_n;
+wire next_clk     = hc_next[0] | (mZX & ulaContend & (memContend | ioContend));
+
+assign ce_cpu_sp = ce_7mn & (~CPUClk &  next_clk);
+assign ce_cpu_sn = ce_7mn & ( CPUClk & ~next_clk);
 
 always @(posedge clk_sys) begin
-	ce_cpu_sp <= 0;
-	ce_cpu_sn <= 0;
-	if(ce_7mp) begin
-		CPUClk <= next_clk;
+	if(ce_7mn) CPUClk <= next_clk;
 
-		if(~CPUClk &  next_clk) ce_cpu_sp <= 1;
-		if( CPUClk & ~next_clk) ce_cpu_sn <= 1;
-
-		if(~CPUClk &  next_clk) begin
-			ioreqtw3 <= ioreq_n;
-			mreqt23  <= nMREQ;
-		end
+	if(~CPUClk) begin
+		// These are transparent latches!
+		ioreqtw3 <= ioreq_n;
+		mreqt23  <= nMREQ;
 	end
 end
 

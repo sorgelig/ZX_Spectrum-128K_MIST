@@ -112,7 +112,7 @@ set_multicycle_path -to {u765:u765|i_rpm_time[*][*][*]} -hold 7
 
 # False paths
 
-set_false_path -to {video:video|video_mixer:video_mixer|scandoubler:scandoubler|Hq2x:Hq2x|*}
+set_false_path -to {video_mixer:video_mixer|scandoubler:scandoubler|Hq2x:Hq2x|*}
 
 # Don't bother optimizing sigma_delta_dac
 set_false_path -to {sigma_delta_dac:*}

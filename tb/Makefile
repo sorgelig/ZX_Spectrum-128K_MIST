@@ -5,7 +5,7 @@ VERILATOR_BIN=/usr/local/bin/verilator
 #VERILATOR_BIN=/usr/bin/verilator
 #VERILATOR_DIR=${HOME}/verilator/include
 #VERILATOR_BIN=${HOME}/verilator/bin/verilator
-HDL_FILES = ula_test.v ../ula.sv
+HDL_FILES = ula_test.v cpu.v ula_async.sv ../ula.sv
 
 all: ula_tb
 
