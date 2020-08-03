@@ -41,7 +41,7 @@
 # ========================
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION 13.1
 set_global_assignment -name PROJECT_CREATION_TIME_DATE "21:40:24  MAY 17, 2014"
-set_global_assignment -name LAST_QUARTUS_VERSION "13.1 SP4.26"
+set_global_assignment -name LAST_QUARTUS_VERSION 13.1
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
 set_global_assignment -name SMART_RECOMPILE ON
@@ -297,11 +297,11 @@ set_global_assignment -name SYSTEMVERILOG_FILE tape.sv
 set_global_assignment -name SYSTEMVERILOG_FILE keyboard.sv
 set_global_assignment -name VERILOG_FILE mouse.v
 set_global_assignment -name VERILOG_FILE vram.v
-set_global_assignment -name SYSTEMVERILOG_FILE video.sv
 set_global_assignment -name VERILOG_FILE divmmc.v
 set_global_assignment -name SYSTEMVERILOG_FILE wd1793.sv
 set_global_assignment -name SYSTEMVERILOG_FILE u765.sv
 set_global_assignment -name SYSTEMVERILOG_FILE zxspectrum.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ula.sv
 set_global_assignment -name VHDL_FILE tzxplayer.vhd
 set_global_assignment -name VERILOG_FILE gs.v
 set_global_assignment -name SIGNALTAP_FILE output_files/tzx.stp

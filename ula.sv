@@ -24,14 +24,13 @@
 
 `timescale 1ns / 1ps
 
-module video
+module ULA
 (
 	input         reset,
 
 	input         clk_sys,	// master clock
 	input         ce_7mp,
 	input         ce_7mn,
-	input         ce_28m,
 	output reg    ce_cpu_sp,
 	output reg    ce_cpu_sn,
 
@@ -50,9 +49,15 @@ module video
 	output  [7:0] port_ff,
 	
 	// ULA+
-	input   [1:0] ulap_tmx_ena,
+	input         ulap_avail,
 	output        ulap_sel,
 	output  [7:0] ulap_dout,
+	output reg    ulap_ena,
+	output reg    ulap_mono,
+
+	// Timex mode
+	input         tmx_avail,
+	output reg    mode512,
 
 	// Misc. signals
 	input         mZX,
@@ -60,31 +65,24 @@ module video
 	input         page_scr,
 	input   [2:0] page_ram,
 	input   [2:0] border_color,
-	input         scandoubler_disable,
-	input         ypbpr,
-	input   [1:0] scale,
-
-	// OSD IO interface
-	input         SPI_SCK,
-	input         SPI_SS3,
-	input         SPI_DI,
 
 	// Video outputs
-	output  [5:0] VGA_R,
-	output  [5:0] VGA_G,
-	output  [5:0] VGA_B,
-	output        VGA_VS,
-	output        VGA_HS
+	output reg        HSync,
+	output reg        VSync,
+	output reg        HBlank,
+	output reg  [2:0] Rx,
+	output reg  [2:0] Gx,
+	output reg  [2:0] Bx
 );
 
 assign vram_addr = vaddr;
 assign nINT      = ~INT;
-assign port_ff   = tmx_using_ff ? tmx_cfg : mZX ? ff_data : 8'hFF;
+assign port_ff   = tmx_using_ff ? {2'b00, tmx_cfg} : mZX ? ff_data : 8'hFF;
 
 // Pixel clock
 reg [8:0] hc = 0;
 reg [8:0] vc = 0;
-reg       mode512;
+
 always @(posedge clk_sys) begin
 	reg m512;
 
@@ -137,7 +135,7 @@ always @(posedge clk_sys) begin
 		if(!mZX && (vc == 239) && (hc == 326)) INT <= 1;
 
 		if(INT)  INTCnt <= INTCnt + 1'd1;
-		if(!INTCnt) INT <= 0;
+		if(INTCnt == 0) INT <= 0;
 
 		if ((hc[3:0] == 4) || (hc[3:0] == 12)) begin
 			SRegister <= VidEN ? bits : 8'd0;
@@ -154,19 +152,20 @@ always @(posedge clk_sys) begin
 		if(hc[3]) VidEN <= ~Border;
 	
 		if(!Border) begin
-			casex({tmx_cfg[1],hc[3:0]})
+			casez({tmx_cfg[1],hc[3:0]})
 				5'b01000,
 				5'b01100: vaddr <= {stdpage ? page_scr : tmx_cfg[2],tmx_cfg[0],vc[7:6],vc[2:0],vc[5:3],hc[7:4], hc[2]};
 				5'b11000,
 				5'b11100: vaddr <= {stdpage ? page_scr : tmx_cfg[0],1'b0,vc[7:6],vc[2:0],vc[5:3],hc[7:4], hc[2]};
-				5'bX1001,
-				5'bX1101: begin bits <= vram_dout; ff_data <= vram_dout; end
+				5'b?1001,
+				5'b?1101: begin bits <= vram_dout; ff_data <= vram_dout; end
 				5'b01010,
 				5'b01110: vaddr <= {stdpage ? page_scr : tmx_cfg[2],tmx_cfg[0],3'b110,vc[7:3],hc[7:4],hc[2]};
 				5'b11010,
 				5'b11110: vaddr <= {stdpage ? page_scr : tmx_cfg[0],1'b1,vc[7:6],vc[2:0],vc[5:3],hc[7:4], hc[2]};
-				5'bX1011,
-				5'bX1111: begin attr <= vram_dout; ff_data <= vram_dout; end
+				5'b?1011,
+				5'b?1111: begin attr <= vram_dout; ff_data <= vram_dout; end
+				default: ;
 			endcase
 		end
 
@@ -174,15 +173,13 @@ always @(posedge clk_sys) begin
 	end
 end
 
-wire [7:0] hipalette[8] = '{8'b01111000, 8'b01110001, 8'b01101010, 8'b01100011, 
+wire [7:0] hipalette[8];
+assign hipalette = '{8'b01111000, 8'b01110001, 8'b01101010, 8'b01100011, 
 								    8'b01011100, 8'b01010101, 8'b01001110, 8'b01000111};
 
 reg        INT    = 0;
 reg  [5:0] INTCnt = 1;
 reg  [7:0] ff_data;
-reg        HBlank = 1;
-reg        HSync;
-reg        VSync;
 
 reg  [7:0] SRegister;
 reg [15:0] hiSRegister;
@@ -200,34 +197,16 @@ reg  [7:0] attr;
 wire [7:0] hiattr  = hipalette[tmx_cfg[5:3]];
 wire       stdpage = tmx_using_ff | ~tmx_ena;
 
-reg  [2:0] Rx, Gx, Bx;
 wire       I,G,R,B;
 wire       Pixel = tmx_hi ? hiSRegister[15] : SRegister[7] ^ (AttrOut[7] & FlashCnt[4]);
 assign     {I,G,R,B} = Pixel ? {AttrOut[6],AttrOut[2:0]} : {AttrOut[6],AttrOut[5:3]};
 wire [7:0] color = palette[(tmx_hi ? hiSRegister[15] : SRegister[7]) ? {AttrOut[7:6],1'b0,AttrOut[2:0]} : {AttrOut[7:6],1'b1,AttrOut[5:3]}];
 
-always_comb casex({HBlank | VSync, ulap_ena})
-	'b1X: {Gx,Rx,Bx} <= 0;
-	'b00: {Gx,Rx,Bx} <= {{G, I & G, I & G}, {R, I & R, I & R}, {B, I & B, I & B}};
-	'b01: {Gx,Rx,Bx} <= {color, color[1]};
+always_comb casez({HBlank | VSync, ulap_ena})
+	'b1?: {Gx,Rx,Bx} = 0;
+	'b00: {Gx,Rx,Bx} = {{G, I & G, I & G}, {R, I & R, I & R}, {B, I & B, I & B}};
+	'b01: {Gx,Rx,Bx} = {color, color[1]};
 endcase
-
-video_mixer #(.LINE_LENGTH(896), .HALF_DEPTH(1)) video_mixer
-(
-	.*,
-	.ce_pix(ce_7mp | ce_7mn),
-	.ce_pix_actual(ce_7mp | (mode512 & ce_7mn)),
-	.hq2x(scale == 1),
-	.scanlines(scandoubler_disable ? 2'b00 : {scale==3, scale==2}),
-
-	.line_start(0),
-	.ypbpr_full(1),
-
-	.R(Rx),
-	.G(Gx),
-	.B(Bx),
-	.mono(ulap_ena & ulap_mono)
-);
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -260,15 +239,13 @@ end
 
 /////////////////  ULA+, Timex  ///////////////////
 
-assign     ulap_dout = ulap_group ? {ulap_mono, ulap_ena} : palette[pal_addr];
-assign     ulap_sel  = ulap_acc & addr[14] & ulap_tmx_ena[0];
+assign     ulap_dout = ulap_group ? {6'd0, ulap_mono, ulap_ena} : palette[pal_addr];
+assign     ulap_sel  = ulap_acc & addr[14] & ulap_avail;
 
 wire       ulap_acc = ({addr[15], 1'b0, addr[13:0]} == 'hBF3B);
 wire       io_wr = ~nIORQ & ~nWR;
 reg  [5:0] pal_addr;
 reg        ulap_group;
-reg        ulap_ena;
-reg        ulap_mono;
 reg  [7:0] palette[64];
 
 reg  [5:0] tmx_cfg;
@@ -284,7 +261,7 @@ always @(posedge clk_sys) begin
 		{ulap_ena, tmx_ena, tmx_using_ff, tmx_cfg} <= 0;
 		palette <= '{default:0};
 	end else if(~old_wr & io_wr) begin
-		if(ulap_acc & ulap_tmx_ena[0]) begin
+		if(ulap_acc & ulap_avail) begin
 			if(addr[14]) begin
 				if(ulap_group) {ulap_mono,ulap_ena} <= din[1:0];
 					else palette[pal_addr] <= din;
@@ -299,7 +276,7 @@ always @(posedge clk_sys) begin
 				endcase
 			end
 		end
-		if((addr[7:0] == 'hFF) & ulap_tmx_ena[1]) {tmx_using_ff, tmx_ena, tmx_cfg} <= {1'b1, |din[2:0], din[5:0]};
+		if((addr[7:0] == 'hFF) & tmx_avail) {tmx_using_ff, tmx_ena, tmx_cfg} <= {1'b1, |din[2:0], din[5:0]};
 	end
 end
 

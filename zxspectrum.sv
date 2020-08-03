@@ -97,7 +97,6 @@ pll pll
 reg  ce_psg;  //1.75MHz
 reg  ce_7mp;
 reg  ce_7mn;
-reg  ce_28m;
 reg  ce_14m;
 
 reg  pause;
@@ -120,7 +119,6 @@ always @(posedge clk_sys) begin
 
 	counter <=  counter + 1'd1;
 
-	ce_28m  <= !counter[1:0];
 	ce_14m  <= !counter[2:0];
 	ce_7mp  <= !counter[3] & !counter[2:0];
 	ce_7mn  <=  counter[3] & !counter[2:0];
@@ -715,7 +713,6 @@ wire  [7:0] vram_dout;
 wire  [7:0] port_ff;
 wire        ulap_sel;
 wire  [7:0] ulap_dout;
-wire  [1:0] ulap_tmx_ena = {~status[13], ~status[14]} & {~trdos_en, ~trdos_en};
 
 reg mZX, m128;
 always_comb begin
@@ -726,8 +723,31 @@ always_comb begin
 	endcase
 end
 
-video video(.*, .din(cpu_dout), .page_ram(page_ram[2:0]), .scale(status[16:15]));
+wire [1:0] scale = status[16:15];
+wire [2:0] Rx, Gx, Bx;
+wire       HSync, VSync, HBlank;
+wire       ulap_ena, ulap_mono, mode512;
+wire       ulap_avail = ~status[14] & ~trdos_en;
+wire       tmx_avail = ~status[13] & ~trdos_en;
 
+ULA ULA(.*, .din(cpu_dout), .page_ram(page_ram[2:0]));
+
+video_mixer #(.LINE_LENGTH(896), .HALF_DEPTH(1)) video_mixer
+(
+	.*,
+	.ce_pix(ce_7mp | ce_7mn),
+	.ce_pix_actual(ce_7mp | (mode512 & ce_7mn)),
+	.hq2x(scale == 1),
+	.scanlines(scandoubler_disable ? 2'b00 : {scale==3, scale==2}),
+
+	.line_start(0),
+	.ypbpr_full(1),
+
+	.R(Rx),
+	.G(Gx),
+	.B(Bx),
+	.mono(ulap_ena & ulap_mono)
+);
 
 ////////////////////   HID   ////////////////////
 wire [11:1] Fn;
