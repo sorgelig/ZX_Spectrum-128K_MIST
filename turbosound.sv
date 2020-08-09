@@ -69,7 +69,7 @@ always_ff @(posedge CLK or posedge RESET) begin
 	end
 end
 
-ym2149 ym2149_0
+YM2149 ym2149_0
 (
 	.CLK(CLK),
 	.CE(CE),
@@ -92,7 +92,7 @@ ym2149 ym2149_0
 );
 
 // AY1 (Default AY)
-ym2149 ym2149_1
+YM2149 ym2149_1
 (
 	.CLK(CLK),
 	.CE(CE),
