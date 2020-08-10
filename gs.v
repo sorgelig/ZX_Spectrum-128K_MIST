@@ -132,7 +132,10 @@ wire CE = CE_P;
 always @(posedge CLK) begin
 	reg [9:0] cnt;
 
-	if(CE) begin
+	if (RESET) begin
+		cnt <= 0;
+		int_n <= 1;
+	end else if(CE) begin
 		cnt <= cnt + 1'b1;
 		if (cnt == INT_DIV) begin // 37.48kHz
 			cnt <= 0;

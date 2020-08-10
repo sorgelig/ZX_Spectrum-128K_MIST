@@ -97,7 +97,7 @@ pll pll
 reg  ce_psg;  //1.75MHz
 reg  ce_7mp;
 reg  ce_7mn;
-reg  ce_28m;
+reg  ce_14m;
 
 reg  pause;
 reg  cpu_en = 1;
@@ -119,7 +119,7 @@ always @(posedge clk_sys) begin
 
 	counter <=  counter + 1'd1;
 
-	ce_28m  <= !counter[1:0];
+	ce_14m  <= !counter[2:0];
 	ce_7mp  <= !counter[3] & !counter[2:0];
 	ce_7mn  <=  counter[3] & !counter[2:0];
 	ce_psg  <= !counter[5:0] & ~pause;
@@ -136,11 +136,11 @@ always @(posedge clk_sys) begin
 	if(reset) pause <= 0;
 
 	if(!mod) begin
-		if(~old_Fn[4] & Fn[4]) turbo_key <= 5'b11111;
-		if(~old_Fn[5] & Fn[5]) turbo_key <= 5'b01111;
-		if(~old_Fn[6] & Fn[6]) turbo_key <= 5'b00111;
-		if(~old_Fn[7] & Fn[7]) turbo_key <= 5'b00011;
-		if(~old_Fn[8] & Fn[8]) turbo_key <= 5'b00001;
+		if(~old_Fn[4] & Fn[4]) turbo_key <= 5'b11111; //3.5 MHz
+		if(~old_Fn[5] & Fn[5]) turbo_key <= 5'b01111; //  7 Mhz
+		if(~old_Fn[6] & Fn[6]) turbo_key <= 5'b00111; // 14 MHz
+		if(~old_Fn[7] & Fn[7]) turbo_key <= 5'b00011; // 28 MHz
+		if(~old_Fn[8] & Fn[8]) turbo_key <= 5'b00001; // 56 MHz
 		if(~old_Fn[9] & Fn[9]) pause <= ~pause;
 	end
 end
@@ -386,6 +386,7 @@ sdram ram
 	.*,
 	.init_n(locked),
 	.clk(clk_sys),
+	.clkref(ce_14m),
 
 	// port1 is CPU/tape
 	.port1_req(sdram_req),
@@ -638,20 +639,28 @@ wire  [7:0] gs_dout;
 wire [14:0] gs_l, gs_r;
 wire gs_sel = (addr[7:0] ==? 'b1011?011) & ~&status[21:20];
 
-// ~12 MHz (112MHz/10) clock enable for GS card
-reg  gs_ce_p, gs_ce_n;
+reg [3:0] gs_ce_count;
+
 always @(posedge clk_sys) begin
-	reg [3:0] gs_ce_count;
+	reg gs_no_wait;
 
 	if(reset) begin
 		gs_ce_count <= 0;
+		gs_no_wait <= 1;
 	end else begin
-		gs_ce_count <= gs_ce_count + 1'd1;
-		if (gs_ce_count == 4'd9) gs_ce_count <= 0;
-		gs_ce_n <= gs_ce_count == 0;
-		gs_ce_p <= gs_ce_count == 8; // strech the negative phase to allow more time to RAM in M1 cycle
+		if (gs_ce_p) gs_no_wait <= 0;
+		if (gs_mem_ready) gs_no_wait <= 1;
+		if (gs_ce_count == 4'd9) begin
+			if (gs_mem_ready | gs_no_wait) gs_ce_count <= 0;
+		end else
+			gs_ce_count <= gs_ce_count + 1'd1;
+
 	end
 end
+
+// ~12 MHz (112MHz/10) clock enable for GS card
+wire gs_ce_p = gs_ce_count == 0;
+wire gs_ce_n = gs_ce_count == 4;
 
 // General Sound
 gs gs
@@ -683,7 +692,7 @@ sigma_delta_dac #(14) dac_l
 (
 	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin({~gs_l[14], gs_l[13:0]} + {1'b0, psg_ch_a, 4'd0} + {2'b00, psg_ch_b, 3'd0} + {2'b00, ear_out, mic_out, tape_in, 8'd0}),
+	.DACin({~gs_l[14], gs_l[13:0]} + {2'b00, psg_ch_a, 5'd0} + {3'b000, psg_ch_b, 4'd0} + {2'b00, ear_out, mic_out, tape_in, 10'd0}),
 	.DACout(AUDIO_L)
 );
 
@@ -691,7 +700,7 @@ sigma_delta_dac #(14) dac_r
 (
 	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin({~gs_r[14], gs_r[13:0]} + {1'b0, psg_ch_c, 4'd0} + {2'b00, psg_ch_b, 3'd0} + {2'b00, ear_out, mic_out, tape_in, 8'd0}),
+	.DACin({~gs_r[14], gs_r[13:0]} + {2'b00, psg_ch_c, 5'd0} + {3'b000, psg_ch_b, 4'd0} + {2'b00, ear_out, mic_out, tape_in, 10'd0}),
 	.DACout(AUDIO_R)
 );
 
@@ -704,7 +713,6 @@ wire  [7:0] vram_dout;
 wire  [7:0] port_ff;
 wire        ulap_sel;
 wire  [7:0] ulap_dout;
-wire  [1:0] ulap_tmx_ena = {~status[13], ~status[14]} & {~trdos_en, ~trdos_en};
 
 reg mZX, m128;
 always_comb begin
@@ -715,8 +723,31 @@ always_comb begin
 	endcase
 end
 
-video video(.*, .din(cpu_dout), .page_ram(page_ram[2:0]), .scale(status[16:15]));
+wire [1:0] scale = status[16:15];
+wire [2:0] Rx, Gx, Bx;
+wire       HSync, VSync, HBlank;
+wire       ulap_ena, ulap_mono, mode512;
+wire       ulap_avail = ~status[14] & ~trdos_en;
+wire       tmx_avail = ~status[13] & ~trdos_en;
+wire       snow_ena = &turbo & ~plus3;
+ULA ULA(.*, .din(cpu_dout), .page_ram(page_ram[2:0]));
 
+video_mixer #(.LINE_LENGTH(896), .HALF_DEPTH(1)) video_mixer
+(
+	.*,
+	.ce_pix(ce_7mp | ce_7mn),
+	.ce_pix_actual(ce_7mp | (mode512 & ce_7mn)),
+	.hq2x(scale == 1),
+	.scanlines(scandoubler_disable ? 2'b00 : {scale==3, scale==2}),
+
+	.line_start(0),
+	.ypbpr_full(1),
+
+	.R(Rx),
+	.G(Gx),
+	.B(Bx),
+	.mono(ulap_ena & ulap_mono)
+);
 
 ////////////////////   HID   ////////////////////
 wire [11:1] Fn;

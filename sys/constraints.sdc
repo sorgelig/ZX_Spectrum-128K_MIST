@@ -80,8 +80,8 @@ set_multicycle_path -to {smart_tape:tape|tape:tape|bitcnt[*]} -setup 2
 set_multicycle_path -to {smart_tape:tape|tape:tape|bitcnt[*]} -hold 1
 
 # The effective clock fo the AY chips are 112/1.75=64 cycles, so allow at least 2 cycles for the paths
-set_multicycle_path -to {turbosound:turbosound|ym2149:*} -setup 2
-set_multicycle_path -to {turbosound:turbosound|ym2149:*} -hold 1
+set_multicycle_path -to {turbosound:turbosound|YM2149:*} -setup 2
+set_multicycle_path -to {turbosound:turbosound|YM2149:*} -hold 1
 
 set_multicycle_path -from {wd1793:fdd|wd1793_dpram:sbuf|*} -setup 2
 set_multicycle_path -from {wd1793:fdd|wd1793_dpram:sbuf|*} -hold 1
@@ -112,7 +112,7 @@ set_multicycle_path -to {u765:u765|i_rpm_time[*][*][*]} -hold 7
 
 # False paths
 
-set_false_path -to {video:video|video_mixer:video_mixer|scandoubler:scandoubler|Hq2x:Hq2x|*}
+set_false_path -to {video_mixer:video_mixer|scandoubler:scandoubler|Hq2x:Hq2x|*}
 
 # Don't bother optimizing sigma_delta_dac
 set_false_path -to {sigma_delta_dac:*}

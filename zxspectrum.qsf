@@ -146,7 +146,7 @@ set_global_assignment -name PHYSICAL_SYNTHESIS_ASYNCHRONOUS_SIGNAL_PIPELINING ON
 set_global_assignment -name PHYSICAL_SYNTHESIS_REGISTER_DUPLICATION ON
 set_global_assignment -name PHYSICAL_SYNTHESIS_COMBO_LOGIC_FOR_AREA ON
 set_global_assignment -name PHYSICAL_SYNTHESIS_MAP_LOGIC_TO_MEMORY_FOR_AREA ON
-set_global_assignment -name PHYSICAL_SYNTHESIS_EFFORT EXTRA
+set_global_assignment -name PHYSICAL_SYNTHESIS_EFFORT NORMAL
 set_global_assignment -name DEVICE EP3C25E144C8
 set_global_assignment -name CYCLONEIII_CONFIGURATION_SCHEME "PASSIVE SERIAL"
 set_global_assignment -name FORCE_CONFIGURATION_VCCIO ON
@@ -287,9 +287,9 @@ set_global_assignment -name OPTIMIZE_IOC_REGISTER_PLACEMENT_FOR_TIMING "PACK ALL
 
 
 set_global_assignment -name SEED 0
-set_global_assignment -name USE_SIGNALTAP_FILE output_files/gs.stp
+set_global_assignment -name USE_SIGNALTAP_FILE output_files/cpu.stp
 set_global_assignment -name QIP_FILE sys/sys.qip
-set_global_assignment -name QIP_FILE t80/T80.qip
+set_global_assignment -name QIP_FILE T80/T80.qip
 set_global_assignment -name SYSTEMVERILOG_FILE sdram.sv
 set_global_assignment -name SYSTEMVERILOG_FILE turbosound.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ym2149.sv
@@ -297,11 +297,11 @@ set_global_assignment -name SYSTEMVERILOG_FILE tape.sv
 set_global_assignment -name SYSTEMVERILOG_FILE keyboard.sv
 set_global_assignment -name VERILOG_FILE mouse.v
 set_global_assignment -name VERILOG_FILE vram.v
-set_global_assignment -name SYSTEMVERILOG_FILE video.sv
 set_global_assignment -name VERILOG_FILE divmmc.v
 set_global_assignment -name SYSTEMVERILOG_FILE wd1793.sv
 set_global_assignment -name SYSTEMVERILOG_FILE u765.sv
 set_global_assignment -name SYSTEMVERILOG_FILE zxspectrum.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ula.sv
 set_global_assignment -name VHDL_FILE tzxplayer.vhd
 set_global_assignment -name VERILOG_FILE gs.v
 set_global_assignment -name SIGNALTAP_FILE output_files/tzx.stp
