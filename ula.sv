@@ -111,6 +111,8 @@ end
 always @(posedge clk_sys) begin
 	reg m512;
 
+	if(ce_7mp) hiSRegister <= {hiSRegister[14:0],1'b0};
+
 	if(ce_7mn) begin
 		vc <= vc_next;
 		hc <= hc_next;
@@ -124,7 +126,6 @@ always @(posedge clk_sys) begin
 				m512 <= 0;
 			end
 		end
-		hiSRegister <= {hiSRegister[14:0],1'b0};
 
 		if(!mZX) begin
 			if (hc_next == 312) HBlank <= 1;
