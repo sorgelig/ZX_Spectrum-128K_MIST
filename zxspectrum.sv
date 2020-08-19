@@ -650,7 +650,7 @@ always @(posedge clk_sys) begin
 	end else begin
 		if (gs_ce_p) gs_no_wait <= 0;
 		if (gs_mem_ready) gs_no_wait <= 1;
-		if (gs_ce_count == 4'd9) begin
+		if (gs_ce_count == 4'd7) begin
 			if (gs_mem_ready | gs_no_wait) gs_ce_count <= 0;
 		end else
 			gs_ce_count <= gs_ce_count + 1'd1;
@@ -658,12 +658,12 @@ always @(posedge clk_sys) begin
 	end
 end
 
-// ~12 MHz (112MHz/10) clock enable for GS card
+// 14 MHz (112MHz/8) clock enable for GS card
 wire gs_ce_p = gs_ce_count == 0;
 wire gs_ce_n = gs_ce_count == 4;
 
 // General Sound
-gs gs
+gs #(.INT_DIV(373)) gs
 (
 	.RESET(reset),
 	.CLK(clk_sys),
