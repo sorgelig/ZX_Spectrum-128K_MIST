@@ -245,11 +245,14 @@ wire memContend   = ioreq_n & mreqt23 & contendAddr;
 wire ioContend    = ~ioreq_n;
 wire next_clk     = hc_next[0] | (mZX & ulaContend & (memContend | ioContend));
 
-assign ce_cpu_sp = ce_7mn & (~CPUClk &  next_clk);
-assign ce_cpu_sn = ce_7mn & ( CPUClk & ~next_clk);
+reg  next_clk_r;
+
+assign ce_cpu_sp = ce_7mn & (~CPUClk &  next_clk_r);
+assign ce_cpu_sn = ce_7mn & ( CPUClk & ~next_clk_r);
 
 always @(posedge clk_sys) begin
 	if(ce_7mn) CPUClk <= next_clk;
+	if(ce_7mp) next_clk_r <= next_clk;
 
 	if(~CPUClk) begin
 		// These are transparent latches!
