@@ -237,7 +237,7 @@ reg  CPUClk;
 reg  ioreqtw3;
 reg  mreqt23;
 
-wire ioreq_n      = (addr[0] & ~ulap_acc) | nIORQ;
+wire ioreq_n      = (addr[0] & ~(ulap_acc & ulap_avail)) | nIORQ;
 wire clkwait_next = hc_next[2] | hc_next[3];
 wire ulaContend   = clkwait_next & ~Border_next & CPUClk & ioreqtw3;
 wire contendAddr  = ((addr[15:14] == 2'b01) | (m128 & (addr[15:14] == 2'b11) & page_ram[0]));
