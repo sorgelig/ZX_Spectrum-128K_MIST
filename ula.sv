@@ -155,7 +155,7 @@ always @(posedge clk_sys) begin
 		if( mZX && (vc_next == 248) && (hc_next == (m128 ? 8 : 4))) INT <= 1;
 		if(!mZX && (vc_next == 239) && (hc_next == 326)) INT <= 1;
 
-		if(INT)  INTCnt <= INTCnt + 1'd1;
+		if(INT)  INTCnt <= ((m128 && INTCnt == 71) || (~m128 && INTCnt == 63)) ? 7'd0 : (INTCnt + 1'd1);
 		if(INTCnt == 0) INT <= 0;
 
 		if ((hc_next[3:0] == 4) || (hc_next[3:0] == 12)) begin
@@ -202,7 +202,7 @@ assign hipalette = '{8'b01111000, 8'b01110001, 8'b01101010, 8'b01100011,
 								    8'b01011100, 8'b01010101, 8'b01001110, 8'b01000111};
 
 reg        INT    = 0;
-reg  [5:0] INTCnt = 1;
+reg  [6:0] INTCnt = 1;
 reg  [7:0] ff_data;
 
 reg  [7:0] SRegister;
