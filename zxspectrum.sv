@@ -592,13 +592,10 @@ reg [2:0] border_color;
 reg       ear_out;
 reg       mic_out;
 
-wire ula_we = ~addr[0] & ~nIORQ & ~nWR & nM1;
 always @(posedge clk_sys) begin
-	reg old_we;
-	old_we <= ula_we;
 
 	if(reset) {ear_out, mic_out} <= 2'b00;
-	else if(ula_we & ~old_we) begin
+	else if(~ula_nWR) begin
 		border_color <= cpu_dout[2:0];
 		ear_out <= cpu_dout[4]; 
 		mic_out <= cpu_dout[3];
@@ -730,7 +727,9 @@ wire       ulap_ena, ulap_mono, mode512;
 wire       ulap_avail = ~status[14] & ~trdos_en;
 wire       tmx_avail = ~status[13] & ~trdos_en;
 wire       snow_ena = &turbo & ~plus3;
-ULA ULA(.*, .din(cpu_dout), .page_ram(page_ram[2:0]));
+wire       ula_nWR;
+
+ULA ULA(.*, .nPortRD(), .nPortWR(ula_nWR), .din(cpu_dout), .page_ram(page_ram[2:0]));
 
 video_mixer #(.LINE_LENGTH(896), .HALF_DEPTH(1)) video_mixer
 (

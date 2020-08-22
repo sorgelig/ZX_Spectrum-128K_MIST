@@ -40,8 +40,11 @@ module ULA
 	input         nMREQ,
 	input         nIORQ,
 	input         nRFSH,
+	input         nRD,
 	input         nWR,
 	output        nINT,
+	output        nPortRD,
+	output        nPortWR,
 
 	// VRAM interfacing
 	output [14:0] vram_addr,
@@ -79,6 +82,8 @@ module ULA
 assign vram_addr = vaddr;
 assign nINT      = ~INT;
 assign port_ff   = tmx_using_ff ? {2'b00, tmx_cfg} : mZX ? ff_data : 8'hFF;
+assign nPortRD   = addr[0] | nIORQ | ioreqtw3 | nRD;
+assign nPortWR   = addr[0] | nIORQ | ioreqtw3 | nWR;
 
 // Pixel clock
 reg  [8:0] hc = 0;
