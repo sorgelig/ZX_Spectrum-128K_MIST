@@ -287,7 +287,7 @@ T80pa cpu
 );
 
 always_comb begin
-	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel | fdd_sel2 | plus3_fdd, mf3_port, addr[5:0]==8'h1F, portBF, gs_sel, psg_enable, ulap_sel, addr[0]})
+	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel | fdd_sel2 | plus3_fdd, mf3_port, addr[7:0]==8'h1F, portBF, gs_sel, psg_enable, ulap_sel, addr[0]})
 		'b01XXXXXXXXX: cpu_din = tape_dout;
 		'b00XXXXXXXXX: cpu_din = ram_dout;
 		'b1X01XXXXXXX: cpu_din = fdd_dout;
@@ -592,13 +592,10 @@ reg [2:0] border_color;
 reg       ear_out;
 reg       mic_out;
 
-wire ula_we = ~addr[0] & ~nIORQ & ~nWR & nM1;
 always @(posedge clk_sys) begin
-	reg old_we;
-	old_we <= ula_we;
 
 	if(reset) {ear_out, mic_out} <= 2'b00;
-	else if(ula_we & ~old_we) begin
+	else if(~ula_nWR) begin
 		border_color <= cpu_dout[2:0];
 		ear_out <= cpu_dout[4]; 
 		mic_out <= cpu_dout[3];
@@ -650,7 +647,7 @@ always @(posedge clk_sys) begin
 	end else begin
 		if (gs_ce_p) gs_no_wait <= 0;
 		if (gs_mem_ready) gs_no_wait <= 1;
-		if (gs_ce_count == 4'd9) begin
+		if (gs_ce_count == 4'd7) begin
 			if (gs_mem_ready | gs_no_wait) gs_ce_count <= 0;
 		end else
 			gs_ce_count <= gs_ce_count + 1'd1;
@@ -658,12 +655,12 @@ always @(posedge clk_sys) begin
 	end
 end
 
-// ~12 MHz (112MHz/10) clock enable for GS card
+// 14 MHz (112MHz/8) clock enable for GS card
 wire gs_ce_p = gs_ce_count == 0;
 wire gs_ce_n = gs_ce_count == 4;
 
 // General Sound
-gs gs
+gs #(.INT_DIV(373)) gs
 (
 	.RESET(reset),
 	.CLK(clk_sys),
@@ -730,7 +727,9 @@ wire       ulap_ena, ulap_mono, mode512;
 wire       ulap_avail = ~status[14] & ~trdos_en;
 wire       tmx_avail = ~status[13] & ~trdos_en;
 wire       snow_ena = &turbo & ~plus3;
-ULA ULA(.*, .din(cpu_dout), .page_ram(page_ram[2:0]));
+wire       ula_nWR;
+
+ULA ULA(.*, .nPortRD(), .nPortWR(ula_nWR), .din(cpu_dout), .page_ram(page_ram[2:0]));
 
 video_mixer #(.LINE_LENGTH(896), .HALF_DEPTH(1)) video_mixer
 (

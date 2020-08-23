@@ -106,8 +106,11 @@ ULA ULA (
 	.nMREQ(nMREQ),
 	.nIORQ(nIORQ),
 	.nRFSH(nRFSH),
+	.nRD(nRD),
 	.nWR(nWR),
 	.nINT(nINT),
+	.nPortRD(),
+	.nPortWR(),
 
 	.vram_addr(vram_addr_sync),
 	.vram_dout(vram_dout),

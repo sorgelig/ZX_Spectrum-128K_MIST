@@ -176,6 +176,8 @@ wire [5:0] red, green, blue;
 osd #(OSD_X_OFFSET, OSD_Y_OFFSET, OSD_COLOR) osd
 (
 	.*,
+	.ce(0),
+	.rotate(0),
 
 	.R_in(r_out),
 	.G_in(g_out),
